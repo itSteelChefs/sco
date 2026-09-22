@@ -1,0 +1,12 @@
+{
+  "name": "@sco/config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/env.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

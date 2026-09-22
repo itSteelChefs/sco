@@ -5,11 +5,11 @@ const companyA = '00000000-0000-4000-8000-000000000001';
 const companyB = '00000000-0000-4000-8000-000000000002';
 let client: Client;
 
-async function tenantQuery<T>(tenantId: string | undefined, sql: string, values: unknown[] = []) {
+async function tenantQuery(tenantId: string | undefined, sql: string, values: unknown[] = []) {
   await client.query('BEGIN');
   try {
     if (tenantId) await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
-    const result = await client.query<T>(sql, values);
+    const result = await client.query(sql, values);
     await client.query('COMMIT');
     return result;
   } catch (error) {
@@ -67,5 +67,36 @@ describe('PostgreSQL RLS with the runtime role', () => {
     await tenantQuery(companyA, 'SELECT id FROM tenant_probes');
     const result = await tenantQuery(undefined, 'SELECT id FROM tenant_probes');
     expect(result.rows).toEqual([]);
+  });
+
+  it('uses a runtime role that has neither BYPASSRLS nor table ownership', async () => {
+    const result = await client.query<{ rolbypassrls: boolean; owns_table: boolean }>(
+      `SELECT r.rolbypassrls, EXISTS (
+         SELECT 1 FROM pg_class c WHERE c.relowner = r.oid
+       ) AS owns_table
+       FROM pg_roles r WHERE r.rolname = current_user`,
+    );
+    expect(result.rows[0]).toEqual({ rolbypassrls: false, owns_table: false });
+  });
+
+  it('has only the grants required by the Security Gate', async () => {
+    const result = await client.query<{
+      user_update: boolean;
+      company_update: boolean;
+      membership_update: boolean;
+      probe_update: boolean;
+    }>(
+      `SELECT
+        has_table_privilege(current_user, '"User"', 'UPDATE') AS user_update,
+        has_table_privilege(current_user, '"Company"', 'UPDATE') AS company_update,
+        has_table_privilege(current_user, '"CompanyMembership"', 'UPDATE') AS membership_update,
+        has_table_privilege(current_user, 'tenant_probes', 'UPDATE') AS probe_update`,
+    );
+    expect(result.rows[0]).toEqual({
+      user_update: false,
+      company_update: false,
+      membership_update: false,
+      probe_update: true,
+    });
   });
 });

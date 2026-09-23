@@ -314,3 +314,24 @@ enum MatchDecision {
   CLARIFICATION_REQUIRED
   REJECTED
 }
+
+enum ProcurementDocumentType {
+  BOQ
+  MATERIAL_SCHEDULE
+  PROCUREMENT_LIST
+  OTHER
+}
+enum ProcurementDocumentStatus {
+  UPLOADED
+  PROCESSING
+  EXTRACTED
+  REVIEW_REQUIRED
+  READY_FOR_REVIEW
+  FAILED
+}
+enum ProcurementLineStatus {
+  EXTRACTED
+  REVIEW_REQUIRED
+  CANDIDATE_CREATED
+  REVIEWED
+}

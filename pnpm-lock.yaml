@@ -119,6 +119,8 @@ importers:
 
   packages/config: {}
 
+  packages/contracts: {}
+
 packages:
 
   '@borewit/text-codec@0.2.2':

@@ -27,3 +27,9 @@
 - **SECURITY GATE — OWNER APPROVED**.
 - PostgreSQL RLS, server-derived tenant context, active-membership validation, multi-company isolation, and the supporting API/direct-database evidence are accepted as complete within Stage 002.
 - Subsequent Stage 002 tables that carry company ownership require explicit RLS review before acceptance.
+
+## 2026-09-23 — Remaining Stage 002 owner decisions
+
+- Added a reusable, bounded Pagination DTO and integration coverage for the internal list endpoint.
+- Added an idempotent Prisma development/test seed. It is disabled when `NODE_ENV=production`, uses no committed credentials, and is independent of test fixtures.
+- Documented future backup/recovery and production deployment requirements without executing deployment or changing production services.

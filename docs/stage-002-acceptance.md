@@ -22,12 +22,12 @@ Status is evidence-based for the current local repository. `PASS` means the crit
 | 16 | API versioning and correlation ID | PASS | `/api/v1`, middleware test path |
 | 17 | Validation envelope | PASS | invalid login integration assertion |
 | 18 | OpenAPI endpoint | PASS | `/api/v1/openapi.json` test |
-| 19 | Pagination contract | NEEDS DECISION | Internal list shape exists; shared DTO enforcement remains |
+| 19 | Pagination contract | PASS | Reusable validated `PaginationDto`; internal companies endpoint enforces page 1.. and pageSize 1..100; integration tests cover valid and invalid bounds |
 | 20 | Partner Portal build and boundary shell | PASS | Next build and portal test |
 | 21 | Operations Portal build and boundary shell | PASS | Next build and portal test |
-| 22 | Seed/reset workflow | NEEDS DECISION | Fixtures are resettable; formal Prisma seed command remains |
-| 23 | Backup/recovery and production deployment | NEEDS DECISION | Explicitly outside local Stage 002 execution |
+| 22 | Seed/reset workflow | PASS | Official `prisma db seed` script is idempotent, development/test-only, uses no committed secrets, and is independent of test fixtures |
+| 23 | Backup/recovery and production deployment | DEFERRED — OWNER APPROVED DEFERMENT | Future requirements are documented in `docs/runbooks/backup-recovery.md`; production execution is explicitly not approved in Stage 002 |
 | 24 | Security/dependency scan | PASS | `pnpm audit --audit-level=high`: 0 high, 5 moderate |
 | 25 | Scope exclusions and no Production impact | PASS | docs/runbook and unchanged external services |
 
-Final result: **NOT READY FOR OWNER APPROVAL** until items 19, 22, and 23 receive the planned completion/owner decision. Stage 003 is not started.
+Final result: **READY FOR OWNER APPROVAL** for the executable Stage 002 scope. Item 23 remains explicitly deferred by owner decision; no production deployment was performed. Stage 003 is not started.

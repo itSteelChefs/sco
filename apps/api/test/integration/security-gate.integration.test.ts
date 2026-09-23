@@ -266,6 +266,14 @@ describe('Security Gate: request → authentication → membership → tenant �
     expect(allowed.statusCode).toBe(200);
     expect(allowed.json().items[0]).toMatchObject({ id: companyA, name: 'Partner A' });
 
+    const paged = await requestAs(cookie, 'GET', '/api/v1/internal/companies?page=1&pageSize=1', companyA);
+    expect(paged.statusCode).toBe(200);
+    expect(paged.json()).toMatchObject({ page: 1, pageSize: 1 });
+    expect(paged.json().items).toHaveLength(1);
+    const invalid = await requestAs(cookie, 'GET', '/api/v1/internal/companies?page=0&pageSize=101', companyA);
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toEqual({ error: { code: 'VALIDATION_FAILED' } });
+
     await owner.query(`DELETE FROM "RolePermission" rp USING "Role" r, "Permission" p
       WHERE rp.role_id = r.id AND rp.permission_id = p.id AND r.code = 'operations' AND p.code = 'identity.company.read'`);
     const denied = await requestAs(cookie, 'GET', '/api/v1/internal/companies', companyA);

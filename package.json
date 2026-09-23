@@ -21,6 +21,7 @@
     "db:up": "docker compose -f infrastructure/compose/development.yml up -d --wait",
     "db:down": "docker compose -f infrastructure/compose/development.yml down",
     "db:migrate": "set -a && . ./.env && set +a && corepack pnpm --filter @sco/api exec prisma migrate deploy --schema=prisma/schema.prisma",
+    "db:seed": "set -a && . ./.env && set +a && corepack pnpm --filter @sco/api exec prisma db seed",
     "dev:api": "corepack pnpm --filter @sco/api exec tsx src/main.ts",
     "dev:partner": "corepack pnpm --filter @sco/partner-web dev",
     "dev:operations": "corepack pnpm --filter @sco/operations-web dev",

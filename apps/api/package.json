@@ -26,6 +26,10 @@
   },
   "scripts": {
     "test": "vitest run test/database && node --test test/environment.test.mjs",
-    "test:integration": "vitest run test/integration"
+    "test:integration": "vitest run test/integration",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

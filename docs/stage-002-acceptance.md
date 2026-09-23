@@ -31,3 +31,9 @@ Status is evidence-based for the current local repository. `PASS` means the crit
 | 25 | Scope exclusions and no Production impact | PASS | docs/runbook and unchanged external services |
 
 Final result: **READY FOR OWNER APPROVAL** for the executable Stage 002 scope. Item 23 remains explicitly deferred by owner decision; no production deployment was performed. Stage 003 is not started.
+
+## Owner approval
+
+**STAGE 002 — OWNER APPROVED**
+
+The owner approved the Acceptance Matrix and formally closed Stage 002. Backup/Recovery and Production Deployment remain `DEFERRED — OWNER APPROVED DEFERMENT` and must be addressed before any Production Go-Live. Approved implementation commits: `cdf0caf` and `492b0ce`. Stage 003 has not started.

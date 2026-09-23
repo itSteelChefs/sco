@@ -12,8 +12,8 @@
 | Purchase cost snapshot | PASS | RFQ-item immutable snapshot model |
 | Split-award quantity guard | PASS | PostgreSQL trigger locks RFQ item and rejects over-allocation |
 | Currency/tax/payment/delivery preservation | PASS | Original fields and JSON terms; no FX conversion |
-| SCO-only confidentiality/RLS | PASS | FORCE RLS and app.sco_internal policy on every Batch 8 table |
+| SCO-only confidentiality/RLS | PASS | FORCE RLS with purpose-specific SECURITY DEFINER gateways; `app.sco_internal` is context only and never authorization. Migrations 0021–0025 superseded the obsolete direct-policy model. |
 | Granular RBAC permissions | PASS | Seeded RFQ, quote, negotiation, source and purchase-cost permissions |
 | Batch 9 exclusions | PASS | No selling price, margin, offer, PO, funding or commitment tables |
 
-Batch 8 implementation remains subject to final integration and adversarial verification before owner approval.
+Batch 8 final integration and adversarial verification passed. The Owner accepted Batch 8 at commit `b308f4f97c77f9eb3bf2cf09c3b9278fbeb64769`.

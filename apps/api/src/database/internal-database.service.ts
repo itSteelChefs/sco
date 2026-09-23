@@ -1,5 +1,10 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+
+export type PricingAllocationInput = { snapshotId: string; quantity: number; fxRate?: number; asOfDate?: string; fxReason?: string };
+export type PricingLineInput = { lineNumber: number; productIdentityId: string; quantity: number; unitId: string; unitSellingPrice: number; taxTreatmentCode?: string; taxRate?: number; taxAmount?: number; allocations: PricingAllocationInput[] };
+export type DirectDealCostInput = { lineNumber: number; type: string; description?: string; currency: string; amount: number; fxRate?: number; asOfDate?: string; fxReason?: string };
+export type CreatePricingInput = { caseId?: string; partnerCompanyId: string; currency: string; lines: PricingLineInput[]; directCosts?: DirectDealCostInput[]; overhead?: number; overheadReason?: string; correlationId?: string };
 @Injectable()
 export class InternalDatabaseService implements OnModuleDestroy {
   private readonly pool = new Pool({ connectionString: process.env.SCO_INTERNAL_DATABASE_URL });
@@ -19,4 +24,17 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getQuote(actor:string,id:string) { return (await this.pool.query('SELECT * FROM public.internal_quote_get($1,$2)',[actor,id])).rows[0]??null; }
   async getNegotiationEvents(actor:string,id:string) { return (await this.pool.query('SELECT * FROM public.internal_negotiation_events($1,$2)',[actor,id])).rows; }
   async getPurchaseCost(actor:string,id:string) { return (await this.pool.query('SELECT * FROM public.internal_purchase_cost_get($1,$2)',[actor,id])).rows[0]??null; }
+  async createPricing(actor: string, input: CreatePricingInput) {
+    const row = (await this.pool.query<{ id: string }>('SELECT public.internal_pricing_create($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,$9) AS id', [actor, input.caseId ?? null, input.partnerCompanyId, input.currency, JSON.stringify(input.lines), JSON.stringify(input.directCosts ?? []), input.overhead ?? 0, input.overheadReason ?? null, input.correlationId ?? null])).rows[0];
+    return { revisionId: row.id };
+  }
+  async submitPricing(actor: string, revisionId: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_pricing_submit($1,$2,$3)', [actor, revisionId, correlationId ?? null]);
+  }
+  async decidePricing(actor: string, revisionId: string, decision: 'APPROVED' | 'REJECTED', reason?: string, selfApprove = false, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_pricing_decide($1,$2,$3,$4,$5,$6)', [actor, revisionId, decision, reason ?? null, selfApprove, correlationId ?? null]);
+  }
+  async getPricing(actor: string, revisionId: string) { return (await this.pool.query('SELECT * FROM public.internal_pricing_get($1,$2)', [actor, revisionId])).rows[0] ?? null; }
+  async getPricingMargin(actor: string, revisionId: string) { return (await this.pool.query('SELECT * FROM public.internal_pricing_margin_get($1,$2)', [actor, revisionId])).rows[0] ?? null; }
+  async getPricingOverhead(actor: string, revisionId: string) { return (await this.pool.query('SELECT * FROM public.internal_pricing_overhead_get($1,$2)', [actor, revisionId])).rows[0] ?? null; }
 }

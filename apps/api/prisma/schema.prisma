@@ -182,6 +182,58 @@ model ProductAttributeValue {
   @@map("product_attribute_values")
 }
 
+model ProductCandidate {
+  id String @id @default(uuid()) @db.Uuid
+  companyId String? @map("company_id") @db.Uuid
+  submittedBy String @map("submitted_by") @db.Uuid
+  origin CandidateOrigin
+  status CandidateStatus @default(SUBMITTED)
+  submittedName String @map("submitted_name")
+  submittedDescription String? @map("submitted_description")
+  requestedCategoryId String? @map("requested_category_id") @db.Uuid
+  brand String?
+  manufacturer String?
+  modelReference String? @map("model_reference")
+  submittedSpecification Json? @map("submitted_specification")
+  normalizedSpecification Json? @map("normalized_specification")
+  unitId String? @map("unit_id") @db.Uuid
+  warrantyRequirement String? @map("warranty_requirement")
+  sourceMetadata Json? @map("source_metadata")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@index([companyId, status])
+  @@map("product_candidates")
+}
+
+model ProductMatchAssessment {
+  id String @id @default(uuid()) @db.Uuid
+  candidateId String @map("candidate_id") @db.Uuid
+  productIdentityId String? @map("product_identity_id") @db.Uuid
+  matchedAttributes Json? @map("matched_attributes")
+  differingAttributes Json? @map("differing_attributes")
+  missingAttributes Json? @map("missing_attributes")
+  explanation String
+  status MatchAssessmentStatus @default(OPEN)
+  decision MatchDecision?
+  reviewedBy String? @map("reviewed_by") @db.Uuid
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("product_match_assessments")
+}
+
+model ProductCandidateHistory {
+  id String @id @default(uuid()) @db.Uuid
+  candidateId String @map("candidate_id") @db.Uuid
+  fromStatus CandidateStatus? @map("from_status")
+  toStatus CandidateStatus @map("to_status")
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@index([candidateId, createdAt])
+  @@map("product_candidate_history")
+}
+
 enum UserStatus {
   ACTIVE
   DISABLED
@@ -237,4 +289,28 @@ enum ProductIdentityStatus {
   DRAFT
   ACTIVE
   RETIRED
+}
+
+enum CandidateOrigin {
+  PARTNER
+  SCO_INTERNAL
+}
+enum CandidateStatus {
+  SUBMITTED
+  NORMALIZED
+  MATCH_REVIEW
+  LINKED
+  NEW_PRODUCT_PROPOSED
+  CLARIFICATION_REQUIRED
+  REJECTED
+}
+enum MatchAssessmentStatus {
+  OPEN
+  DECIDED
+}
+enum MatchDecision {
+  LINKED
+  NEW_PRODUCT_PROPOSED
+  CLARIFICATION_REQUIRED
+  REJECTED
 }

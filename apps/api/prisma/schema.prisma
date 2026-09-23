@@ -335,3 +335,31 @@ enum ProcurementLineStatus {
   CANDIDATE_CREATED
   REVIEWED
 }
+
+enum ProjectStatus {
+ DRAFT
+ ACTIVE
+ ON_HOLD
+ COMPLETED
+ CANCELLED
+}
+enum NeedSourceType {
+ MANUAL
+ DOCUMENT_LINE
+}
+enum DemandMaturity {
+ FORECAST
+ PLANNED
+ APPROVED
+ READY
+}
+enum NeedReviewStatus {
+ PENDING
+ APPROVED
+ REJECTED
+}
+enum PlanStatus {
+ DRAFT
+ ACTIVE
+ CLOSED
+}

@@ -10,6 +10,7 @@ import { DocumentsModule } from './modules/documents/documents.module.js';
 import { ApiFoundationController } from './common/http/api-foundation.controller.js';
 import { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { correlationIdMiddleware } from './common/http/correlation-id.middleware.js';
+import { CatalogModule } from './modules/catalog/catalog.module.js';
 
-@Module({ imports: [DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule], controllers: [OperationsController, PartnerController, ApiFoundationController] })
+@Module({ imports: [DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule], controllers: [OperationsController, PartnerController, ApiFoundationController] })
 export class AppModule implements NestModule { configure(consumer: MiddlewareConsumer) { consumer.apply(correlationIdMiddleware).forRoutes('*'); } }

@@ -18,6 +18,6 @@ import { MembershipEligibilityService } from './membership-eligibility.service.j
   imports: [DatabaseModule, AuditModule, forwardRef(() => AuthModule)],
   controllers: [CompanyAccessController, TenantProbesController, QualificationController],
   providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService],
-  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService],
+  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard],
 })
 export class IdentityModule {}

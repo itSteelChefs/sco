@@ -100,6 +100,88 @@ model CompanyMembership {
   @@index([companyId])
 }
 
+model ProductCategory {
+  id String @id @default(uuid()) @db.Uuid
+  parentId String? @map("parent_id") @db.Uuid
+  code String @unique
+  name String
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("product_categories")
+}
+
+model CategoryAttributeDefinition {
+  id String @id @default(uuid()) @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+  key String
+  displayName String @map("display_name")
+  dataType CatalogAttributeType @map("data_type")
+  required Boolean @default(false)
+  unitApplicability Json? @map("unit_applicability")
+  validationMetadata Json? @map("validation_metadata")
+  sortOrder Int @default(0) @map("sort_order")
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@unique([categoryId, key])
+  @@map("category_attribute_definitions")
+}
+
+model UnitDefinition {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  dimension String
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("unit_definitions")
+}
+
+model CurrencyDefinition {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  isBase Boolean @default(false) @map("is_base")
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("currency_definitions")
+}
+
+model ProductIdentity {
+  id String @id @default(uuid()) @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+  brand String?
+  manufacturer String?
+  modelReference String? @map("model_reference")
+  publicSpecification Json? @map("public_specification")
+  unitId String? @map("unit_id") @db.Uuid
+  warrantyType String? @map("warranty_type")
+  warrantyPeriodMonths Int? @map("warranty_period_months")
+  warrantyProvider String? @map("warranty_provider")
+  status ProductIdentityStatus @default(DRAFT)
+  version Int @default(1)
+  createdBy String @map("created_by") @db.Uuid
+  activatedBy String? @map("activated_by") @db.Uuid
+  activatedAt DateTime? @map("activated_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@index([categoryId, status])
+  @@map("product_identities")
+}
+
+model ProductAttributeValue {
+  id String @id @default(uuid()) @db.Uuid
+  productIdentityId String @map("product_identity_id") @db.Uuid
+  attributeDefinitionId String @map("attribute_definition_id") @db.Uuid
+  value Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([productIdentityId, attributeDefinitionId])
+  @@map("product_attribute_values")
+}
+
 enum UserStatus {
   ACTIVE
   DISABLED
@@ -142,4 +224,17 @@ enum PartnershipStatus {
   SUSPENDED
   REVOKED
   REJECTED
+}
+
+enum CatalogAttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  ENUM
+}
+
+enum ProductIdentityStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
 }

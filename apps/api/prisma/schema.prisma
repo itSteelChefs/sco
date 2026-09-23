@@ -428,3 +428,34 @@ enum PurchaseSourceStatus {
  SUSPENDED
  RETIRED
 }
+
+enum RFQStatus {
+  DRAFT
+  READY_TO_SEND
+  ISSUED
+  RESPONSES_PENDING
+  EVALUATION
+  CLOSED
+  CANCELLED
+  EXPIRED
+}
+enum RFQRecipientStatus {
+  PENDING
+  SENT
+  RESPONDED
+  DECLINED
+  CANCELLED
+}
+enum SupplierQuoteStatus {
+  RECEIVED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+enum PurchaseCostApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}

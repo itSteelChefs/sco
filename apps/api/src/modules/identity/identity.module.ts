@@ -16,11 +16,13 @@ import { MembershipEligibilityService } from './membership-eligibility.service.j
 import { PlanningService } from './planning.service.js';
 import { ExecutionService } from './execution.service.js';
 import { SupplierNetworkService } from './supplier-network.service.js';
+import { RfqService } from './rfq.service.js';
+import { AlternativeProductService } from './alternative-product.service.js';
 
 @Module({
   imports: [DatabaseModule, AuditModule, forwardRef(() => AuthModule)],
   controllers: [CompanyAccessController, TenantProbesController, QualificationController],
-  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService, PlanningService, ExecutionService, SupplierNetworkService],
-  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard, PlanningService, ExecutionService, SupplierNetworkService],
+  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
+  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
 })
 export class IdentityModule {}

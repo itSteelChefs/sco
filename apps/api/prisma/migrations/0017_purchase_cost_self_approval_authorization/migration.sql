@@ -1,0 +1,3 @@
+CREATE OR REPLACE FUNCTION public.can_self_approve_purchase_cost(p_actor_id uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public AS $$ SELECT EXISTS (SELECT 1 FROM public."CompanyMembership" cm JOIN public."Company" c ON c.id=cm."companyId" AND c.type='SCO' AND c.status='ACTIVE' JOIN public."MembershipRole" mr ON mr.membership_id=cm.id JOIN public."RolePermission" rp ON rp.role_id=mr.role_id JOIN public."Permission" p ON p.id=rp.permission_id WHERE cm."userId"=p_actor_id AND cm.status='ACTIVE' AND p.code='purchase_cost.self_approve') $$;
+REVOKE ALL ON FUNCTION public.can_self_approve_purchase_cost(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_self_approve_purchase_cost(uuid) TO sco_internal_executor;

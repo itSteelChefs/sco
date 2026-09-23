@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import type { AuthorizedDownload, StagedObject, StorageProvider } from './storage-provider.js';
@@ -20,5 +20,9 @@ export class DevelopmentStorageProvider implements StorageProvider {
     const absolutePath = resolve(this.root, safeKey);
     if (!absolutePath.startsWith(`${this.root}/`)) throw new Error('INVALID_STORAGE_KEY');
     return { storageKey: safeKey, absolutePath };
+  }
+  async readPrivate(storageKey: string): Promise<Uint8Array> {
+    const authorized = await this.authorizeDownload(storageKey);
+    return readFile(authorized.absolutePath);
   }
 }

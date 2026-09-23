@@ -3,4 +3,5 @@ export type AuthorizedDownload = { storageKey: string; absolutePath: string };
 export interface StorageProvider {
   stage(input: { storageKey: string; content: Uint8Array }): Promise<StagedObject>;
   authorizeDownload(storageKey: string): Promise<AuthorizedDownload>;
+  readPrivate(storageKey: string): Promise<Uint8Array>;
 }

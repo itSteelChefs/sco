@@ -1,0 +1,10 @@
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='sco_internal_executor') THEN CREATE ROLE sco_internal_executor LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS; END IF; END $$;
+ALTER ROLE sco_internal_executor NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+GRANT CONNECT ON DATABASE sco_dev TO sco_internal_executor;
+GRANT USAGE ON SCHEMA public TO sco_internal_executor;
+CREATE OR REPLACE FUNCTION public.can_review_alternative_product(p_actor_id uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public AS $$ SELECT EXISTS (SELECT 1 FROM public."CompanyMembership" cm JOIN public."Company" c ON c.id=cm."companyId" AND c.type='SCO' AND c.status='ACTIVE' JOIN public."MembershipRole" mr ON mr.membership_id=cm.id JOIN public."RolePermission" rp ON rp.role_id=mr.role_id JOIN public."Permission" p ON p.id=rp.permission_id WHERE cm."userId"=p_actor_id AND cm.status='ACTIVE' AND p.code='alternative_product.review') $$;
+REVOKE ALL ON FUNCTION public.can_review_alternative_product(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_review_alternative_product(uuid) TO sco_internal_executor;
+GRANT SELECT, UPDATE ON alternative_product_proposals TO sco_internal_executor;
+CREATE POLICY alternative_product_internal_executor_select ON alternative_product_proposals FOR SELECT TO sco_internal_executor USING (current_user='sco_internal_executor');
+CREATE POLICY alternative_product_internal_executor_update ON alternative_product_proposals FOR UPDATE TO sco_internal_executor USING (current_user='sco_internal_executor') WITH CHECK (current_user='sco_internal_executor');

@@ -407,3 +407,24 @@ enum ExecutionChangeStatus {
  REJECTED
  EXECUTED
 }
+enum SupplierQualificationStatus {
+ DRAFT
+ UNDER_REVIEW
+ APPROVED
+ ACTIVE
+ SUSPENDED
+ RETIRED
+}
+enum SupplierCapabilityStatus {
+ UNDER_REVIEW
+ APPROVED
+ ACTIVE
+ SUSPENDED
+ REVOKED
+}
+enum PurchaseSourceStatus {
+ DRAFT
+ ACTIVE
+ SUSPENDED
+ RETIRED
+}

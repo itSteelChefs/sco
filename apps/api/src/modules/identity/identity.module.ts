@@ -14,11 +14,12 @@ import { QualificationController } from './qualification.controller.js';
 import { ScoInternalGuard } from './sco-internal.guard.js';
 import { MembershipEligibilityService } from './membership-eligibility.service.js';
 import { PlanningService } from './planning.service.js';
+import { ExecutionService } from './execution.service.js';
 
 @Module({
   imports: [DatabaseModule, AuditModule, forwardRef(() => AuthModule)],
   controllers: [CompanyAccessController, TenantProbesController, QualificationController],
-  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService, PlanningService],
-  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard, PlanningService],
+  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService, PlanningService, ExecutionService],
+  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard, PlanningService, ExecutionService],
 })
 export class IdentityModule {}

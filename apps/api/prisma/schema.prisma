@@ -51,6 +51,39 @@ model Company {
   createdAt   DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   memberships CompanyMembership[]
+  partnerships CompanyPartnership[]
+}
+
+model QualificationApplication {
+  id String @id @default(uuid()) @db.Uuid
+  legalName String @map("legal_name")
+  contactEmail String @map("contact_email")
+  status QualificationStatus @default(APPLICATION)
+  submittedBy String? @map("submitted_by") @db.Uuid
+  reviewedBy String? @map("reviewed_by") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  decisionReason String? @map("decision_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("qualification_applications")
+}
+
+model CompanyPartnership {
+  id String @id @default(uuid()) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  type PartnershipType
+  status PartnershipStatus @default(UNDER_REVIEW)
+  approvedBy String? @map("approved_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+  activeFrom DateTime? @map("active_from") @db.Timestamptz(6)
+  suspendedAt DateTime? @map("suspended_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  @@unique([companyId, type])
+  @@index([companyId, status])
+  @@map("company_partnerships")
 }
 
 model CompanyMembership {
@@ -88,4 +121,25 @@ enum MembershipStatus {
   ACTIVE
   SUSPENDED
   REVOKED
+}
+
+enum QualificationStatus {
+  APPLICATION
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PartnershipType {
+  BUYER_PARTNERSHIP
+  SUPPLIER_PARTNERSHIP
+}
+
+enum PartnershipStatus {
+  UNDER_REVIEW
+  APPROVED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  REJECTED
 }

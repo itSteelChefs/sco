@@ -7,11 +7,17 @@ import { CompanyAccessController } from './company-access.controller.js';
 import { MembershipsService } from './memberships.service.js';
 import { TenantProbesController } from './tenant-probes.controller.js';
 import { UsersService } from './users.service.js';
+import { AuditModule } from '../audit/audit.module.js';
+import { QualificationService } from './qualification.service.js';
+import { PartnershipsService } from './partnerships.service.js';
+import { QualificationController } from './qualification.controller.js';
+import { ScoInternalGuard } from './sco-internal.guard.js';
+import { MembershipEligibilityService } from './membership-eligibility.service.js';
 
 @Module({
-  imports: [DatabaseModule, forwardRef(() => AuthModule)],
-  controllers: [CompanyAccessController, TenantProbesController],
-  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard],
-  exports: [UsersService, CompaniesService, MembershipsService],
+  imports: [DatabaseModule, AuditModule, forwardRef(() => AuthModule)],
+  controllers: [CompanyAccessController, TenantProbesController, QualificationController],
+  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService],
+  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService],
 })
 export class IdentityModule {}

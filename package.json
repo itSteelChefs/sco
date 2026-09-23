@@ -5,6 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.15.1",
   "pnpm": {
+    "overrides": {
+      "postcss": "8.5.18",
+      "deepmerge-ts": "8.0.0"
+    },
     "onlyBuiltDependencies": [
       "@prisma/client",
       "@prisma/engines",
@@ -14,6 +18,12 @@
     ]
   },
   "scripts": {
+    "db:up": "docker compose -f infrastructure/compose/development.yml up -d --wait",
+    "db:down": "docker compose -f infrastructure/compose/development.yml down",
+    "db:migrate": "set -a && . ./.env && set +a && corepack pnpm --filter @sco/api exec prisma migrate deploy --schema=prisma/schema.prisma",
+    "dev:api": "corepack pnpm --filter @sco/api exec tsx src/main.ts",
+    "dev:partner": "corepack pnpm --filter @sco/partner-web dev",
+    "dev:operations": "corepack pnpm --filter @sco/operations-web dev",
     "test": "pnpm --recursive test",
     "lint": "pnpm --recursive lint",
     "typecheck": "pnpm --recursive typecheck"

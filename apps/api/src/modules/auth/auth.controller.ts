@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { unauthenticated } from '../../common/http/api-error.js';
 import { AuthGuard, cookieValue, type RequestWithAuth } from './guards/auth.guard.js';
@@ -22,7 +22,9 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() body: LoginBody, @Res({ passthrough: true }) reply: FastifyReply) {
-    if (typeof body.email !== 'string' || typeof body.password !== 'string') throw unauthenticated();
+    if (typeof body.email !== 'string' || typeof body.password !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) {
+      throw new BadRequestException({ error: { code: 'VALIDATION_FAILED' } });
+    }
     const token = await this.auth.login(body.email, body.password);
     reply.header('set-cookie', sessionCookie(token));
     return { ok: true };

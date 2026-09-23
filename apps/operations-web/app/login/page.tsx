@@ -1,0 +1,1 @@
+export default function Login() { return <main><h1>دخول العمليات الداخلية</h1><form><input name="email" type="email" required /><input name="password" type="password" required /><button type="submit">دخول</button></form></main>; }

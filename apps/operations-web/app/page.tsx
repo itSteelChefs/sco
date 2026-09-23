@@ -1,0 +1,1 @@
+export default function Home() { return <main><h1>SCO Internal Operations</h1><nav><a href="/users">المستخدمون</a><a href="/companies">الشركات</a><a href="/memberships">العضويات</a><a href="/roles">الأدوار والصلاحيات</a></nav></main>; }

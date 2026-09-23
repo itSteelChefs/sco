@@ -1,0 +1,7 @@
+{
+  "name": "@sco/contracts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": { ".": "./src/api.ts" }
+}

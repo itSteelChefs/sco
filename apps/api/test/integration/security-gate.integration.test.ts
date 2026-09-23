@@ -7,6 +7,8 @@ import argon2 from 'argon2';
 import { AppModule } from '../../src/app.module.js';
 import { RuntimeDatabaseService } from '../../src/database/runtime-database.service.js';
 import { TenantTransactionService } from '../../src/database/tenant-transaction.service.js';
+import { AuditService } from '../../src/modules/audit/audit.service.js';
+import { DocumentsService } from '../../src/modules/documents/documents.service.js';
 
 const companyA = '00000000-0000-4000-8000-000000000001';
 const companyB = '00000000-0000-4000-8000-000000000002';
@@ -16,6 +18,7 @@ const multiUser = '10000000-0000-4000-8000-000000000002';
 const suspendedUser = '10000000-0000-4000-8000-000000000003';
 const revokedUser = '10000000-0000-4000-8000-000000000004';
 const disabledUser = '10000000-0000-4000-8000-000000000005';
+const internalUser = '10000000-0000-4000-8000-000000000006';
 const password = randomBytes(32).toString('base64url');
 
 let app: NestFastifyApplication;
@@ -55,6 +58,12 @@ beforeAll(async () => {
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
   await owner.query('DELETE FROM "Session"');
+  await owner.query('DELETE FROM "MembershipRole"');
+  await owner.query('DELETE FROM "RolePermission"');
+  await owner.query('DELETE FROM "Role"');
+  await owner.query('DELETE FROM document_versions');
+  await owner.query('DELETE FROM documents');
+  await owner.query('DELETE FROM audit_logs');
   await owner.query('DELETE FROM "CompanyMembership"');
   await owner.query('DELETE FROM "User"');
   await owner.query('DELETE FROM "Company"');
@@ -71,8 +80,9 @@ beforeAll(async () => {
       ($2, 'multi@sco.test', $6, 'ACTIVE'),
       ($3, 'suspended@sco.test', $6, 'ACTIVE'),
       ($4, 'revoked@sco.test', $6, 'ACTIVE'),
-      ($5, 'disabled@sco.test', $6, 'ACTIVE')`,
-    [userA, multiUser, suspendedUser, revokedUser, disabledUser, passwordHash],
+      ($5, 'disabled@sco.test', $6, 'ACTIVE'),
+      ($7, 'internal@sco.test', $6, 'ACTIVE')`,
+    [userA, multiUser, suspendedUser, revokedUser, disabledUser, passwordHash, internalUser],
   );
   await owner.query(
     `INSERT INTO "CompanyMembership" ("userId", "companyId", status) VALUES
@@ -81,9 +91,28 @@ beforeAll(async () => {
       ($2, $7, 'ACTIVE'),
       ($3, $6, 'SUSPENDED'),
       ($4, $6, 'REVOKED'),
-      ($5, $6, 'ACTIVE')`,
-    [userA, multiUser, suspendedUser, revokedUser, disabledUser, companyA, companyB],
+      ($5, $6, 'ACTIVE'),
+      ($8, $6, 'ACTIVE')`,
+    [userA, multiUser, suspendedUser, revokedUser, disabledUser, companyA, companyB, internalUser],
   );
+  await owner.query(`INSERT INTO "Permission" (code, description) VALUES
+    ('identity.company.read', 'Read internal company data'),
+    ('partner.portal.read', 'Read partner portal') ON CONFLICT (code) DO NOTHING`);
+  await owner.query(`INSERT INTO "Role" (company_id, code, name) VALUES
+    ($1, 'partner-user', 'Partner User'), ($1, 'operations', 'Operations')
+    ON CONFLICT (company_id, code) DO NOTHING`, [companyA]);
+  const roles = await owner.query<{ id: string; code: string }>('SELECT id, code FROM "Role" WHERE company_id = $1', [companyA]);
+  const permissions = await owner.query<{ id: string; code: string }>('SELECT id, code FROM "Permission" WHERE code IN ($1, $2)', ['identity.company.read', 'partner.portal.read']);
+  const memberships = await owner.query<{ id: string; userId: string }>('SELECT id, "userId" FROM "CompanyMembership" WHERE "companyId" = $1', [companyA]);
+  const roleByCode = Object.fromEntries(roles.rows.map((row) => [row.code, row.id]));
+  const permissionByCode = Object.fromEntries(permissions.rows.map((row) => [row.code, row.id]));
+  const membershipByUser = Object.fromEntries(memberships.rows.map((row) => [row.userId, row.id]));
+  await owner.query(`INSERT INTO "RolePermission" (company_id, role_id, permission_id) VALUES
+    ($1, $2, $3), ($1, $4, $5) ON CONFLICT (role_id, permission_id) DO NOTHING`,
+    [companyA, roleByCode['operations'], permissionByCode['identity.company.read'], roleByCode['partner-user'], permissionByCode['partner.portal.read']]);
+  await owner.query(`INSERT INTO "MembershipRole" (company_id, membership_id, role_id) VALUES
+    ($1, $2, $3), ($1, $4, $5) ON CONFLICT (membership_id, role_id) DO NOTHING`,
+    [companyA, membershipByUser[userA], roleByCode['partner-user'], membershipByUser[internalUser], roleByCode['operations']]);
 
   const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
@@ -117,6 +146,19 @@ describe('Security Gate: request → authentication → membership → tenant �
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toEqual({ error: { code: 'INVALID_CREDENTIALS' } });
+  });
+
+  it('returns a correlation id and validation envelope', async () => {
+    const response = await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email: 'not-an-email' } });
+    expect(response.statusCode).toBe(400);
+    expect(response.headers['x-correlation-id']).toEqual(expect.any(String));
+    expect(response.json()).toEqual({ error: { code: 'VALIDATION_FAILED' } });
+  });
+
+  it('publishes versioned OpenAPI metadata', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/openapi.json' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().openapi).toMatch(/^3\./);
   });
 
   it('allows Partner A to read its own resolved company and sets the PostgreSQL tenant context', async () => {
@@ -209,5 +251,41 @@ describe('Security Gate: request → authentication → membership → tenant �
     );
     expect(stored.rows[0].tokenHash).toBe(expectedHash);
     expect(stored.rows[0].tokenHash).not.toBe(token);
+  });
+
+  it('denies a partner membership from internal operations even when the URL is known', async () => {
+    const cookie = await login('partner-a@sco.test');
+    const response = await requestAs(cookie, 'GET', '/api/v1/internal/companies', companyA);
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: { code: 'FORBIDDEN' } });
+  });
+
+  it('allows an internal membership only through its assigned permission', async () => {
+    const cookie = await login('internal@sco.test');
+    const allowed = await requestAs(cookie, 'GET', '/api/v1/internal/companies', companyA);
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json().items[0]).toMatchObject({ id: companyA, name: 'Partner A' });
+
+    await owner.query(`DELETE FROM "RolePermission" rp USING "Role" r, "Permission" p
+      WHERE rp.role_id = r.id AND rp.permission_id = p.id AND r.code = 'operations' AND p.code = 'identity.company.read'`);
+    const denied = await requestAs(cookie, 'GET', '/api/v1/internal/companies', companyA);
+    expect(denied.statusCode).toBe(403);
+  });
+
+  it('records tenant and pre-tenant audit events without storing secret metadata', async () => {
+    const audit = app.get(AuditService);
+    await audit.record({ actorUserId: userA, companyId: companyA, scope: 'TENANT', action: 'rbac.permission_checked', metadata: { permission: 'identity.company.read', password: 'must-not-persist' } });
+    await audit.record({ scope: 'PRE_TENANT', action: 'auth.login_failed', metadata: { email: 'unknown@sco.test', token: 'must-not-persist' } });
+    const rows = await owner.query('SELECT scope, company_id, action, metadata FROM audit_logs ORDER BY created_at DESC LIMIT 2');
+    expect(rows.rows.map((row) => row.scope)).toEqual(expect.arrayContaining(['TENANT', 'PRE_TENANT']));
+    expect(JSON.stringify(rows.rows)).not.toContain('must-not-persist');
+  });
+
+  it('does not authorize a Company A document for Company B', async () => {
+    const documentId = '30000000-0000-4000-8000-000000000001';
+    await owner.query('DELETE FROM documents WHERE id = $1', [documentId]);
+    await owner.query('INSERT INTO documents (id, company_id, filename, detected_mime_type, byte_size, storage_key, sha256, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [documentId, companyA, 'private.pdf', 'application/pdf', 1, `${companyA}/private`, 'hash-a', 'AVAILABLE']);
+    const documents = app.get(DocumentsService);
+    await expect(documents.authorizeDownload(documentId, { userId: userA, companyId: companyB, membershipId: '00000000-0000-4000-8000-000000000000', status: 'ACTIVE' })).rejects.toMatchObject({ response: { error: { code: 'FORBIDDEN' } } });
   });
 });

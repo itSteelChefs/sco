@@ -1,0 +1,13 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { AppModule } from './app.module.js';
+import { ApiValidationPipe } from './common/http/validation-pipe.js';
+export async function bootstrap() {
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  app.setGlobalPrefix('');
+  app.useGlobalPipes(new ApiValidationPipe());
+  await app.listen(Number(process.env.PORT ?? 3101), '127.0.0.1');
+  return app;
+}
+if (process.env.NODE_ENV !== 'test') bootstrap();

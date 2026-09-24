@@ -56,4 +56,10 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getOfferBinding(actor: string, revisionId: string) {
     return (await this.pool.query<{ pricing_revision_id: string }>('SELECT * FROM public.internal_offer_binding_get($1,$2)', [actor, revisionId])).rows[0] ?? null;
   }
+  async verifyPartnerPurchaseOrder(actor: string, purchaseOrderId: string, reason?: string, correlationId?: string) {
+    return (await this.pool.query<{ verification_id: string; outcome: string }>('SELECT * FROM public.internal_partner_po_verify($1,$2,$3,$4)', [actor, purchaseOrderId, reason ?? null, correlationId ?? null])).rows[0];
+  }
+  async createCommercialCommitment(actor: string, purchaseOrderId: string, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_commercial_commitment_create($1,$2,$3) AS id', [actor, purchaseOrderId, correlationId ?? null])).rows[0].id;
+  }
 }

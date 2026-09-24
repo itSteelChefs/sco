@@ -1,0 +1,5 @@
+ALTER TABLE internal_funding_authorizations
+  DROP CONSTRAINT internal_funding_authorizatio_supplier_funding_requirement__key;
+
+CREATE INDEX internal_funding_authorizations_requirement_idx
+  ON internal_funding_authorizations(supplier_funding_requirement_id);

@@ -83,4 +83,13 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getCashExposure(actor: string, requirementId: string) {
     return (await this.pool.query('SELECT * FROM public.internal_cash_exposure_get($1,$2)', [actor, requirementId])).rows;
   }
+  async createSupplierReconfirmation(actor: string, input: { purchaseSourceId: string; supplierCompanyId: string; productIdentityId: string; price: number; currency: string; quantity: number; validUntil?: string; note?: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_reconfirmation_create($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS id', [actor, input.purchaseSourceId, input.supplierCompanyId, input.productIdentityId, input.price, input.currency, input.quantity, input.validUntil ?? null, input.note ?? null, input.correlationId ?? null])).rows[0].id;
+  }
+  async executeProcurementRelease(actor: string, commitmentId: string, lines: Array<{ commercialCommitmentLineId: string; productIdentityId: string; quantity: number; unitId: string; approvedPurchaseCostSnapshotId: string; supplierReconfirmationId?: string }>, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_procurement_release_execute($1,$2,$3::jsonb,$4) AS id', [actor, commitmentId, JSON.stringify(lines), correlationId ?? null])).rows[0].id;
+  }
+  async withdrawProcurementRelease(actor: string, releaseId: string, reason: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_procurement_release_withdraw($1,$2,$3,$4)', [actor, releaseId, reason, correlationId ?? null]);
+  }
 }

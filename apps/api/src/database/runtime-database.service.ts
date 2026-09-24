@@ -72,6 +72,20 @@ export class RuntimeDatabaseService implements OnModuleDestroy {
     });
   }
 
+  async recordPaymentReceipt(actor: string, companyId: string, input: { requirementId: string; amount: number; currency: string; paymentDate: string; method?: string; reference?: string; evidenceReference?: string; idempotencyKey?: string; correlationId?: string }) {
+    return this.withTransaction(async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query<{ id: string }>('SELECT public.partner_payment_receipt_record($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS id', [actor, companyId, input.requirementId, input.amount, input.currency, input.paymentDate, input.method ?? null, input.reference ?? null, input.evidenceReference ?? null, input.idempotencyKey ?? null, input.correlationId ?? null])).rows[0].id;
+    });
+  }
+
+  async getPaymentSummary(actor: string, companyId: string, commitmentId: string) {
+    return this.withTransaction(async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query<{ summary: Record<string, unknown> | null }>('SELECT public.partner_payment_summary($1,$2,$3) AS summary', [actor, companyId, commitmentId])).rows[0].summary;
+    });
+  }
+
   async query<T extends QueryResultRow>(sql: string, values: unknown[] = []) {
     return this.pool.query<T>(sql, values);
   }

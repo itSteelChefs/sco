@@ -62,4 +62,25 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async createCommercialCommitment(actor: string, purchaseOrderId: string, correlationId?: string) {
     return (await this.pool.query<{ id: string }>('SELECT public.internal_commercial_commitment_create($1,$2,$3) AS id', [actor, purchaseOrderId, correlationId ?? null])).rows[0].id;
   }
+  async createPaymentRequirement(actor: string, commitmentId: string, input: { type: string; amount: number; currency: string; dueDate?: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_payment_requirement_create($1,$2,$3,$4,$5,$6,$7) AS id', [actor, commitmentId, input.type, input.amount, input.currency, input.dueDate ?? null, input.correlationId ?? null])).rows[0].id;
+  }
+  async verifyPayment(actor: string, receiptId: string, method: 'DOCUMENT_EVIDENCE' | 'INTERNAL_CONFIRMATION', reason: string, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_payment_verify($1,$2,$3,$4,$5) AS id', [actor, receiptId, method, reason, correlationId ?? null])).rows[0].id;
+  }
+  async createSupplierFundingRequirement(actor: string, commitmentId: string, input: { stage: string; amount: number; currency: string; requiredBy?: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_funding_create($1,$2,$3,$4,$5,$6,$7) AS id', [actor, commitmentId, input.stage, input.amount, input.currency, input.requiredBy ?? null, input.correlationId ?? null])).rows[0].id;
+  }
+  async authorizeInternalFunding(actor: string, requirementId: string, input: { amount: number; currency: string; reason: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_funding_authorize($1,$2,$3,$4,$5,$6) AS id', [actor, requirementId, input.amount, input.currency, input.reason, input.correlationId ?? null])).rows[0].id;
+  }
+  async evaluateFunding(actor: string, requirementId: string, correlationId?: string) {
+    return (await this.pool.query<{ evaluation_id: string; status: string; funding_gap: string | null }>('SELECT * FROM public.internal_cash_funding_evaluate($1,$2,$3)', [actor, requirementId, correlationId ?? null])).rows[0];
+  }
+  async getSupplierFunding(actor: string, requirementId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_funding_get($1,$2)', [actor, requirementId])).rows[0] ?? null;
+  }
+  async getCashExposure(actor: string, requirementId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_cash_exposure_get($1,$2)', [actor, requirementId])).rows;
+  }
 }

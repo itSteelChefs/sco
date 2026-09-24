@@ -37,4 +37,23 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getPricing(actor: string, revisionId: string) { return (await this.pool.query('SELECT * FROM public.internal_pricing_get($1,$2)', [actor, revisionId])).rows[0] ?? null; }
   async getPricingMargin(actor: string, revisionId: string) { return (await this.pool.query('SELECT * FROM public.internal_pricing_margin_get($1,$2)', [actor, revisionId])).rows[0] ?? null; }
   async getPricingOverhead(actor: string, revisionId: string) { return (await this.pool.query('SELECT * FROM public.internal_pricing_overhead_get($1,$2)', [actor, revisionId])).rows[0] ?? null; }
+  async createOffer(actor: string, input: { offerId?: string; pricingRevisionId: string; offerReference: string; commercialTerms?: string; paymentTerms?: string; deliveryTerms?: string; correlationId?: string }) {
+    const row = (await this.pool.query<{ offer_id: string; revision_id: string }>('SELECT * FROM public.internal_offer_create($1,$2,$3,$4,$5,$6,$7,$8)', [actor, input.offerId ?? null, input.pricingRevisionId, input.offerReference, input.commercialTerms ?? null, input.paymentTerms ?? null, input.deliveryTerms ?? null, input.correlationId ?? null])).rows[0];
+    return { offerId: row.offer_id, revisionId: row.revision_id };
+  }
+  async submitOffer(actor: string, revisionId: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_offer_submit($1,$2,$3)', [actor, revisionId, correlationId ?? null]);
+  }
+  async decideOffer(actor: string, revisionId: string, decision: 'APPROVED' | 'REJECTED', reason?: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_offer_decide($1,$2,$3,$4,$5)', [actor, revisionId, decision, reason ?? null, correlationId ?? null]);
+  }
+  async issueOffer(actor: string, revisionId: string, validUntil: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_offer_issue($1,$2,$3,$4)', [actor, revisionId, validUntil, correlationId ?? null]);
+  }
+  async withdrawOffer(actor: string, revisionId: string, reason: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_offer_withdraw($1,$2,$3,$4)', [actor, revisionId, reason, correlationId ?? null]);
+  }
+  async getOfferBinding(actor: string, revisionId: string) {
+    return (await this.pool.query<{ pricing_revision_id: string }>('SELECT * FROM public.internal_offer_binding_get($1,$2)', [actor, revisionId])).rows[0] ?? null;
+  }
 }

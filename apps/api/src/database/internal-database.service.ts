@@ -116,4 +116,19 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async setSupplierPurchaseOrderLead(actor: string, purchaseOrderId: string, engineerId: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_supplier_po_lead_set($1,$2,$3,$4)', [actor, purchaseOrderId, engineerId, correlationId ?? null]);
   }
+  async recordSupplierPOConfirmation(actor: string, lineId: string, quantity: number, promisedDate: string, supplierReference?: string, note?: string, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_po_confirmation_record($1,$2,$3,$4,$5,$6,$7) AS id', [actor, lineId, quantity, promisedDate, supplierReference ?? null, note ?? null, correlationId ?? null])).rows[0].id;
+  }
+  async getSupplierPOConfirmationLine(actor: string, lineId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_po_confirmation_line_get($1,$2)', [actor, lineId])).rows[0] ?? null;
+  }
+  async changeSupplierPOConfirmationDate(actor: string, lineId: string, previousDate: string, newDate: string, reason: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_po_confirmation_date_change($1,$2,$3,$4,$5,$6)', [actor, lineId, previousDate, newDate, reason, correlationId ?? null]);
+  }
+  async correctSupplierPOConfirmationReference(actor: string, lineId: string, previousReference: string, correctedReference: string, reason: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_po_confirmation_reference_correct($1,$2,$3,$4,$5,$6)', [actor, lineId, previousReference, correctedReference, reason, correlationId ?? null]);
+  }
+  async getSupplierPOConfirmation(actor: string, purchaseOrderId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_po_confirmation_po_get($1,$2)', [actor, purchaseOrderId])).rows;
+  }
 }

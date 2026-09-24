@@ -92,4 +92,28 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async withdrawProcurementRelease(actor: string, releaseId: string, reason: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_procurement_release_withdraw($1,$2,$3,$4)', [actor, releaseId, reason, correlationId ?? null]);
   }
+  async createSupplierPurchaseOrderDraft(actor: string, purchaseSourceId: string, currency: string, lines: Array<Record<string, unknown>>, leadProcurementEngineerId?: string, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_po_draft_create($1,$2,$3,$4::jsonb,$5,$6) AS id', [actor, purchaseSourceId, currency, JSON.stringify(lines), leadProcurementEngineerId ?? null, correlationId ?? null])).rows[0].id;
+  }
+  async issueSupplierPurchaseOrder(actor: string, purchaseOrderId: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_po_issue($1,$2,$3)', [actor, purchaseOrderId, correlationId ?? null]);
+  }
+  async setPurchaseSourcePreference(actor: string, purchaseSourceId: string, preferred: boolean, reason: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_purchase_source_preference_set($1,$2,$3,$4,$5)', [actor, purchaseSourceId, preferred, reason, correlationId ?? null]);
+  }
+  async authorizeStrategicOverbuy(actor: string, input: { purchaseSourceId: string; productIdentityId: string; unitId: string; quantity: number; currency: string; maxUnitPurchaseCost: number; reason: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_strategic_overbuy_authorize($1,$2,$3,$4,$5,$6,$7,$8,$9) AS id', [actor, input.purchaseSourceId, input.productIdentityId, input.unitId, input.quantity, input.currency, input.maxUnitPurchaseCost, input.reason, input.correlationId ?? null])).rows[0].id;
+  }
+  async getScopedSupplierPurchaseOrder(actor: string, purchaseOrderId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_po_scoped_get($1,$2)', [actor, purchaseOrderId])).rows;
+  }
+  async listScopedSupplierPurchaseOrders(actor: string, limit = 50, offset = 0) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_po_scoped_list($1,$2,$3)', [actor, limit, offset])).rows;
+  }
+  async setSupplierPurchaseOrderLineResponsibility(actor: string, lineId: string, engineerId: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_po_line_responsibility_set($1,$2,$3,$4)', [actor, lineId, engineerId, correlationId ?? null]);
+  }
+  async setSupplierPurchaseOrderLead(actor: string, purchaseOrderId: string, engineerId: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_po_lead_set($1,$2,$3,$4)', [actor, purchaseOrderId, engineerId, correlationId ?? null]);
+  }
 }

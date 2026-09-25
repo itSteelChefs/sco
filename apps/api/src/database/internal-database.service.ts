@@ -161,6 +161,18 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getSupplierPaymentScheduleItems(actor: string, revisionId: string) {
     return (await this.pool.query('SELECT * FROM public.internal_supplier_payment_schedule_items_get($1,$2)', [actor, revisionId])).rows;
   }
+  async createPartnerDeliverySite(actor: string, companyId: string, projectId: string | null, label: string, location: Record<string, unknown> = {}, contact: Record<string, unknown> = {}, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_partner_delivery_site_create($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7) AS id', [actor, companyId, projectId, label, JSON.stringify(location), JSON.stringify(contact), correlationId ?? null])).rows[0].id;
+  }
+  async createSupplierPODeliveryTranche(actor: string, allocationId: string, siteId: string, confirmationEventId: string, quantity: number, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_po_delivery_tranche_create($1,$2,$3,$4,$5,$6) AS id', [actor, allocationId, siteId, confirmationEventId, quantity, correlationId ?? null])).rows[0].id;
+  }
+  async changeSupplierPODeliveryTrancheDate(actor: string, trancheId: string, previousDate: string, newDate: string, reason: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_po_delivery_tranche_date_change($1,$2,$3,$4,$5,$6)', [actor, trancheId, previousDate, newDate, reason, correlationId ?? null]);
+  }
+  async getSupplierPODeliveryTranche(actor: string, trancheId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_po_delivery_tranche_get($1,$2)', [actor, trancheId])).rows[0] ?? null;
+  }
   async approveSupplierPaymentSchedule(actor: string, revisionId: string, reason?: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_supplier_payment_schedule_approve($1,$2,$3,$4)', [actor, revisionId, reason ?? null, correlationId ?? null]);
   }

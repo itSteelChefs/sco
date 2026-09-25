@@ -27,7 +27,7 @@ describe('Batch 9.6.1 Supplier PO scoped visibility', () => {
   });
 
   it('requires both read permission and a valid source/category assignment', async () => {
-    const po=(await owner.query(`SELECT p.id,l.id AS line_id,p.purchase_source_id,pi.category_id FROM supplier_purchase_orders p JOIN supplier_purchase_order_lines l ON l.supplier_purchase_order_id=p.id JOIN product_identities pi ON pi.id=l.product_identity_id WHERE p.status='ISSUED' ORDER BY p.created_at DESC LIMIT 1`)).rows[0];
+    const po=(await owner.query(`SELECT p.id,l.id AS line_id,p.purchase_source_id,pi.category_id FROM supplier_purchase_orders p JOIN supplier_purchase_order_lines l ON l.supplier_purchase_order_id=p.id JOIN product_identities pi ON pi.id=l.product_identity_id WHERE p.status='ISSUED' AND (SELECT count(*) FROM supplier_purchase_order_lines lx WHERE lx.supplier_purchase_order_id=p.id)=1 ORDER BY p.created_at DESC LIMIT 1`)).rows[0];
     const engineer=await principal('supplier_po.read_assigned');
     expect(await internal.getScopedSupplierPurchaseOrder(engineer,po.id)).toEqual([]);
     await owner.query(`INSERT INTO procurement_engineer_scope_assignments(actor_user_id,purchase_source_id,product_category_id,status,assigned_by) VALUES($1,$2,$3,'ACTIVE',$1)`,[engineer,po.purchase_source_id,po.category_id]);

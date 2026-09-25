@@ -158,6 +158,9 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getSupplierPaymentSchedule(actor: string, revisionId: string) {
     return (await this.pool.query('SELECT * FROM public.internal_supplier_payment_schedule_get($1,$2)', [actor, revisionId])).rows[0] ?? null;
   }
+  async getSupplierPaymentScheduleItems(actor: string, revisionId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_payment_schedule_items_get($1,$2)', [actor, revisionId])).rows;
+  }
   async approveSupplierPaymentSchedule(actor: string, revisionId: string, reason?: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_supplier_payment_schedule_approve($1,$2,$3,$4)', [actor, revisionId, reason ?? null, correlationId ?? null]);
   }

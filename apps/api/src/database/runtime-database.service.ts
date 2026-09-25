@@ -100,6 +100,13 @@ export class RuntimeDatabaseService implements OnModuleDestroy {
     });
   }
 
+  async getPartnerBuyingPowerOwnContext(actor: string, companyId: string, horizon?: string, bucket?: string) {
+    return this.withTransaction(async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query('SELECT * FROM public.partner_buying_power_own_context($1,$2,$3,$4)', [actor, companyId, horizon ?? null, bucket ?? null])).rows;
+    });
+  }
+
   async query<T extends QueryResultRow>(sql: string, values: unknown[] = []) {
     return this.pool.query<T>(sql, values);
   }

@@ -143,7 +143,9 @@ export class InternalDatabaseService implements OnModuleDestroy {
     return { runId: row.run_id, snapshotId: row.snapshot_id };
   }
   async getBuyingPowerClassifiedSummary(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_classified_summary_get($1,$2)', [actor, snapshotId])).rows; }
+  async getBuyingPowerInternalSummary(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_summary_view($1,$2)', [actor, snapshotId])).rows; }
   async getBuyingPowerSummary(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_snapshot_summary_get($1,$2)', [actor, snapshotId])).rows; }
+  async getBuyingPowerInternalLineage(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_lineage_view($1,$2)', [actor, snapshotId])).rows; }
   async getBuyingPowerLineage(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_snapshot_lineage_get($1,$2)', [actor, snapshotId])).rows; }
   async registerSupplierPOCommercialDocument(actor: string, purchaseOrderId: string, documentId: string, versionId: string, documentType: string, classification: string, correlationId?: string) {
     return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_po_commercial_document_register($1,$2,$3,$4,$5,$6,$7) AS id', [actor, purchaseOrderId, documentId, versionId, documentType, classification, correlationId ?? null])).rows[0].id;

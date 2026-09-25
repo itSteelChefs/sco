@@ -31,6 +31,28 @@ async function commitment(partner: string, productId: string, unitId: string, qu
   return line;
 }
 
+async function mixedNeedFixture(allocation: number, productId = product, unitId = unit) {
+  const project = id();
+  const need = id();
+  await owner.query(
+    `INSERT INTO projects(id,company_id,code,name,status,created_by)
+     VALUES($1,$2,$3,'BP mixed case','ACTIVE',$4)`,
+    [project, partnerA, `BP-${project}`, actor],
+  );
+  await owner.query(
+    `INSERT INTO procurement_needs(id,company_id,project_id,created_by,source_type,product_identity_id,description,quantity,ready_quantity,unit_id,need_date,maturity,review_status)
+     VALUES($1,$2,$3,$4,'MANUAL',$5,'mixed case',100,100,$6,current_date,'READY','APPROVED')`,
+    [need, partnerA, project, actor, productId, unitId],
+  );
+  const executionItem = allocation > 0 ? id() : null;
+  if (executionItem) await owner.query(
+    `INSERT INTO procurement_execution_items(id,execution_id,company_id,project_id,procurement_need_id,product_identity_id,allocated_quantity,remaining_quantity,unit_id,need_date,idempotency_key,created_by,status)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$7,$8,current_date,$9,$10,'SOURCING_READY')`,
+    [executionItem, executionA, partnerA, project, need, productId, allocation, unitId, id(), actor],
+  );
+  return { project, need, executionItem };
+}
+
 describe('Batch 10-A controlled aggregation foundation', () => {
   beforeAll(async () => {
     internal = new InternalDatabaseService();
@@ -166,5 +188,183 @@ describe('Batch 10-A controlled aggregation foundation', () => {
     expect((await owner.query(`SELECT committed_quantity,potential_quantity,qualified_quantity,open_quantity,released_quantity,procured_quantity FROM buying_power_snapshot_lines WHERE snapshot_id=$1`,[result.snapshotId])).rows[0]).toMatchObject({committed_quantity:'60.0000',potential_quantity:null,qualified_quantity:null,open_quantity:null,released_quantity:null,procured_quantity:null});
     const after={ commitments:(await owner.query(`SELECT count(*)::int count FROM commercial_commitments`)).rows[0].count, releases:(await owner.query(`SELECT count(*)::int count FROM procurement_releases`)).rows[0].count, pos:(await owner.query(`SELECT count(*)::int count FROM supplier_purchase_orders`)).rows[0].count, coverage:(await owner.query(`SELECT count(*)::int count FROM supplier_po_coverage_bindings`)).rows[0].count, confirmations:(await owner.query(`SELECT count(*)::int count FROM supplier_po_line_confirmation_events`)).rows[0].count, schedules:(await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedules`)).rows[0].count };
     expect(after).toEqual(before);
+  });
+
+  it('rejects mixed Need and Execution Item conversions that over-consume one economic demand root', async () => {
+    const project = id();
+    const need = id();
+    const executionItem = id();
+    const executionCommitment = await commitment(partnerA, product, unit, 40);
+    const needCommitment = await commitment(partnerA, product, unit, 80);
+
+    await owner.query(
+      `INSERT INTO projects(id,company_id,code,name,status,created_by)
+       VALUES($1,$2,$3,'BP mixed lineage','ACTIVE',$4)`,
+      [project, partnerA, `BP-${project}`, actor],
+    );
+    await owner.query(
+      `INSERT INTO procurement_needs(id,company_id,project_id,created_by,source_type,product_identity_id,description,quantity,ready_quantity,unit_id,need_date,maturity,review_status)
+       VALUES($1,$2,$3,$4,'MANUAL',$5,'mixed lineage',100,100,$6,current_date,'READY','APPROVED')`,
+      [need, partnerA, project, actor, product, unit],
+    );
+    await owner.query(
+      `INSERT INTO procurement_execution_items(id,execution_id,company_id,project_id,procurement_need_id,product_identity_id,allocated_quantity,remaining_quantity,unit_id,need_date,idempotency_key,created_by,status)
+       VALUES($1,$2,$3,$4,$5,$6,40,40,$7,$8,$9,$10,'SOURCING_READY')`,
+      [executionItem, executionA, partnerA, project, need, product, unit, new Date(), id(), actor],
+    );
+
+    await internal.createBuyingPowerConversion(actor, executionCommitment, 'EXECUTION_ITEM', executionItem, 40, id());
+
+    // 40 units are reserved for the weekly execution path; only 60 remain
+    // available for direct Need conversion. The 80-unit request must reject.
+    await expect(
+      internal.createBuyingPowerConversion(actor, needCommitment, 'NEED', need, 80, id()),
+    ).rejects.toThrow();
+  });
+
+  it('allows 25 execution-linked plus 60 direct Need units from a 100-unit root', async () => {
+    const fixture = await mixedNeedFixture(40);
+    const executionLine = await commitment(partnerA, product, unit, 25);
+    const needLine = await commitment(partnerA, product, unit, 60);
+    await internal.createBuyingPowerConversion(actor, executionLine, 'EXECUTION_ITEM', fixture.executionItem, 25, id());
+    await internal.createBuyingPowerConversion(actor, needLine, 'NEED', fixture.need, 60, id());
+    const totals = (await owner.query(
+      `SELECT source_type, sum(converted_quantity) AS total
+         FROM commitment_demand_conversion_allocations
+        WHERE source_id IN ($1,$2)
+        GROUP BY source_type`,
+      [fixture.need, fixture.executionItem],
+    )).rows;
+    expect(totals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source_type: 'NEED', total: '60.0000' }),
+      expect.objectContaining({ source_type: 'EXECUTION_ITEM', total: '25.0000' }),
+    ]));
+  });
+
+  it('rejects 25 execution-linked plus 80 direct Need units from a 100-unit root', async () => {
+    const fixture = await mixedNeedFixture(40);
+    const executionLine = await commitment(partnerA, product, unit, 25);
+    const needLine = await commitment(partnerA, product, unit, 80);
+    await internal.createBuyingPowerConversion(actor, executionLine, 'EXECUTION_ITEM', fixture.executionItem, 25, id());
+    await expect(internal.createBuyingPowerConversion(actor, needLine, 'NEED', fixture.need, 80, id())).rejects.toThrow('BUYING_POWER_CONVERSION_SOURCE_EXCEEDED');
+  });
+
+  it('rejects direct Need conversion above reserved capacity even without execution-linked commitment', async () => {
+    const fixture = await mixedNeedFixture(40);
+    const needLine = await commitment(partnerA, product, unit, 70);
+    await expect(internal.createBuyingPowerConversion(actor, needLine, 'NEED', fixture.need, 70, id())).rejects.toThrow('BUYING_POWER_CONVERSION_SOURCE_EXCEEDED');
+  });
+
+  it('aggregates multiple execution reservations before allowing direct Need conversion', async () => {
+    const fixture = await mixedNeedFixture(25);
+    const secondExecutionItem = id();
+    await owner.query(
+      `INSERT INTO procurement_execution_items(id,execution_id,company_id,project_id,procurement_need_id,product_identity_id,allocated_quantity,remaining_quantity,unit_id,need_date,idempotency_key,created_by,status)
+       VALUES($1,$2,$3,$4,$5,$6,15,15,$7,current_date,$8,$9,'SOURCING_READY')`,
+      [secondExecutionItem, executionA, partnerA, fixture.project, fixture.need, product, unit, id(), actor],
+    );
+    const executionLineA = await commitment(partnerA, product, unit, 25);
+    const executionLineB = await commitment(partnerA, product, unit, 15);
+    const needLine = await commitment(partnerA, product, unit, 60);
+    await internal.createBuyingPowerConversion(actor, executionLineA, 'EXECUTION_ITEM', fixture.executionItem, 25, id());
+    await internal.createBuyingPowerConversion(actor, executionLineB, 'EXECUTION_ITEM', secondExecutionItem, 15, id());
+    await internal.createBuyingPowerConversion(actor, needLine, 'NEED', fixture.need, 60, id());
+    expect((await owner.query(`SELECT sum(converted_quantity) AS total FROM commitment_demand_conversion_allocations WHERE source_id IN ($1,$2)`, [fixture.executionItem, secondExecutionItem])).rows[0].total).toBe('40.0000');
+  });
+
+  it('keeps EXTERNAL commitment independent from Need reservation capacity', async () => {
+    const fixture = await mixedNeedFixture(40);
+    const externalLine = await commitment(partnerA, product, unit, 50);
+    const needLine = await commitment(partnerA, product, unit, 60);
+    await internal.createBuyingPowerConversion(actor, externalLine, 'EXTERNAL', null, 50, id());
+    await internal.createBuyingPowerConversion(actor, needLine, 'NEED', fixture.need, 60, id());
+    expect((await owner.query(`SELECT count(*)::int AS count FROM commitment_demand_conversion_allocations WHERE commitment_line_id=$1 AND source_type='EXTERNAL'`, [externalLine])).rows[0].count).toBe(1);
+  });
+
+  it('serializes concurrent direct conversions against the reserved Need capacity', async () => {
+    const fixture = await mixedNeedFixture(40);
+    const lineA = await commitment(partnerA, product, unit, 40);
+    const lineB = await commitment(partnerA, product, unit, 40);
+    const results = await Promise.allSettled([
+      internal.createBuyingPowerConversion(actor, lineA, 'NEED', fixture.need, 40, id()),
+      internal.createBuyingPowerConversion(actor, lineB, 'NEED', fixture.need, 40, id()),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect((await owner.query(`SELECT sum(converted_quantity) AS total FROM commitment_demand_conversion_allocations WHERE source_type='NEED' AND source_id=$1`, [fixture.need])).rows[0].total).toBe('40.0000');
+  });
+
+  it('classifies maturity and weekly/rolling partitions without double counting the root Need', async () => {
+    const forecast = await mixedNeedFixture(0);
+    const planned = await mixedNeedFixture(0);
+    const approved = await mixedNeedFixture(0);
+    const ready = await mixedNeedFixture(40);
+    await owner.query(`UPDATE procurement_needs SET need_date='2032-01-15' WHERE id = ANY($1::uuid[])`, [[forecast.need, planned.need, approved.need, ready.need]]);
+    await owner.query(`UPDATE procurement_needs SET maturity='FORECAST' WHERE id=$1`, [forecast.need]);
+    await owner.query(`UPDATE procurement_needs SET maturity='PLANNED' WHERE id=$1`, [planned.need]);
+    await owner.query(`UPDATE procurement_needs SET maturity='APPROVED' WHERE id=$1`, [approved.need]);
+    await owner.query(`UPDATE procurement_needs SET maturity='READY' WHERE id=$1`, [ready.need]);
+    const weekly = await internal.runBuyingPowerClassification(actor, 'WEEKLY_IMMEDIATE', '2032-01-01', `bp-10b-weekly-${id()}`, [ready.need], []);
+    const weeklyLine = (await internal.getBuyingPowerClassifiedSummary(actor, weekly.snapshotId))[0];
+    expect(weeklyLine.open_quantity).toBe('40.0000');
+    const rolling = await internal.runBuyingPowerClassification(actor, 'ROLLING_PLANNED', '2032-01-01', `bp-10b-rolling-${id()}`, [forecast.need, planned.need, approved.need, ready.need], []);
+    const rollingLines = await internal.getBuyingPowerClassifiedSummary(actor, rolling.snapshotId);
+    expect(rollingLines.reduce((sum, line) => sum + Number(line.potential_quantity ?? 0), 0)).toBe(200);
+    expect(rollingLines.reduce((sum, line) => sum + Number(line.qualified_quantity ?? 0), 0)).toBe(160);
+    expect(rollingLines.reduce((sum, line) => sum + Number(line.open_quantity ?? 0), 0)).toBe(360);
+  });
+
+  it('includes only needs inside the selected rolling 90-day need-date window', async () => {
+    const inWindow = await mixedNeedFixture(0);
+    const outOfWindow = await mixedNeedFixture(0);
+    await owner.query(`UPDATE procurement_needs SET need_date='2032-01-15' WHERE id=$1`, [inWindow.need]);
+    await owner.query(`UPDATE procurement_needs SET need_date='2032-06-15' WHERE id=$1`, [outOfWindow.need]);
+    const result = await internal.runBuyingPowerClassification(actor, 'ROLLING_PLANNED', '2032-01-01', `bp-10b-window-${id()}`, [inWindow.need, outOfWindow.need], []);
+    const summary = await internal.getBuyingPowerClassifiedSummary(actor, result.snapshotId);
+    expect(summary.reduce((sum, line) => sum + Number(line.open_quantity ?? 0), 0)).toBe(100);
+  });
+
+  it('uses the deterministic half-open 90-day rolling boundary', async () => {
+    const dates = ['2032-01-01', '2032-01-02', '2032-03-30', '2032-04-01', '2031-12-31', '2032-04-02'];
+    const fixtures = await Promise.all(dates.map(() => mixedNeedFixture(0)));
+    await Promise.all(fixtures.map((fixture, index) => owner.query(`UPDATE procurement_needs SET need_date=$1 WHERE id=$2`, [dates[index], fixture.need])));
+    const result = await internal.runBuyingPowerClassification(actor, 'ROLLING_PLANNED', '2032-01-01', `bp-10b-boundary-${id()}`, fixtures.map((fixture) => fixture.need), []);
+    const summary = await internal.getBuyingPowerClassifiedSummary(actor, result.snapshotId);
+    expect(summary.reduce((sum, line) => sum + Number(line.open_quantity ?? 0), 0)).toBe(300);
+    expect((await owner.query(`SELECT count(*)::int AS count FROM procurement_needs WHERE id=ANY($1::uuid[])`, [fixtures.map((fixture) => fixture.need)])).rows[0].count).toBe(6);
+  });
+
+  it('derives released and issued-procured metrics without double counting downstream rows', async () => {
+    const basis = (await owner.query(`SELECT s.id,s.product_identity_id,ri.unit_id,s.purchase_source_id,s.supplier_company_id,s.currency_code,s.unit_purchase_cost FROM approved_purchase_cost_snapshots s JOIN rfq_items ri ON ri.id=s.rfq_item_id WHERE s.status='APPROVED' LIMIT 1`)).rows[0];
+    expect(basis).toBeTruthy();
+    const fixture = await mixedNeedFixture(0, basis.product_identity_id, basis.unit_id);
+    await owner.query(`UPDATE procurement_needs SET need_date='2032-01-15' WHERE id=$1`, [fixture.need]);
+    const line = await commitment(partnerA, basis.product_identity_id, basis.unit_id, 100);
+    await internal.createBuyingPowerConversion(actor, line, 'NEED', fixture.need, 100, id());
+    const commitmentId = (await owner.query(`SELECT commercial_commitment_id FROM commercial_commitment_lines WHERE id=$1`, [line])).rows[0].commercial_commitment_id;
+    const release = id();
+    const releaseLine = id();
+    await owner.query(`INSERT INTO procurement_releases(id,commercial_commitment_id,partner_company_id,status,total_required,currency_code,executed_by,executed_at) VALUES($1,$2,$3,'PROCUREMENT_RELEASED',100,'SAR',$4,now())`, [release, commitmentId, partnerA, actor]);
+    await owner.query(`INSERT INTO procurement_release_lines(id,release_id,commercial_commitment_line_id,product_identity_id,released_quantity,unit_id,approved_purchase_cost_snapshot_id,purchase_source_id,supplier_company_id,currency_code,unit_purchase_cost) VALUES($1,$2,$3,$4,100,$5,$6,$7,$8,'SAR',$9)`, [releaseLine, release, line, basis.product_identity_id, basis.unit_id, basis.id, basis.purchase_source_id, basis.supplier_company_id, basis.unit_purchase_cost]);
+    const draftPo = id();
+    const draftLine = id();
+    await owner.query(`INSERT INTO supplier_purchase_orders(id,purchase_source_id,supplier_company_id,currency_code,status,created_by) VALUES($1,$2,$3,'SAR','DRAFT',$4)`, [draftPo, basis.purchase_source_id, basis.supplier_company_id, actor]);
+    await owner.query(`INSERT INTO supplier_purchase_order_lines(id,supplier_purchase_order_id,demand_origin,product_identity_id,unit_id,ordered_quantity,actual_unit_purchase_cost,currency_code) VALUES($1,$2,'RELEASED_DEMAND',$3,$4,60,$5,'SAR')`, [draftLine, draftPo, basis.product_identity_id, basis.unit_id, basis.unit_purchase_cost]);
+    await owner.query(`INSERT INTO supplier_po_release_line_allocations(supplier_purchase_order_line_id,procurement_release_line_id,allocated_quantity,approved_purchase_cost_snapshot_id,original_purchase_source_id,approved_unit_purchase_cost) VALUES($1,$2,60,$3,$4,$5)`, [draftLine, releaseLine, basis.id, basis.purchase_source_id, basis.unit_purchase_cost]);
+    const draftSnapshot = await internal.runBuyingPowerClassification(actor, 'ROLLING_PLANNED', '2032-01-01', `bp-10b-release-draft-${id()}`, [fixture.need], [line]);
+    const draftSummary = (await internal.getBuyingPowerClassifiedSummary(actor, draftSnapshot.snapshotId))[0];
+    expect(draftSummary.released_quantity).toBe('100.0000');
+    expect(draftSummary.procured_quantity).toBeNull();
+    expect(draftSummary.open_quantity).toBeNull();
+    const issuedPo = id();
+    const issuedLine = id();
+    await owner.query(`INSERT INTO supplier_purchase_orders(id,purchase_source_id,supplier_company_id,currency_code,status,created_by,issued_by,issued_at) VALUES($1,$2,$3,'SAR','ISSUED',$4,$4,now())`, [issuedPo, basis.purchase_source_id, basis.supplier_company_id, actor]);
+    await owner.query(`INSERT INTO supplier_purchase_order_lines(id,supplier_purchase_order_id,demand_origin,product_identity_id,unit_id,ordered_quantity,actual_unit_purchase_cost,currency_code) VALUES($1,$2,'RELEASED_DEMAND',$3,$4,60,$5,'SAR')`, [issuedLine, issuedPo, basis.product_identity_id, basis.unit_id, basis.unit_purchase_cost]);
+    await owner.query(`INSERT INTO supplier_po_release_line_allocations(supplier_purchase_order_line_id,procurement_release_line_id,allocated_quantity,approved_purchase_cost_snapshot_id,original_purchase_source_id,approved_unit_purchase_cost) VALUES($1,$2,60,$3,$4,$5)`, [issuedLine, releaseLine, basis.id, basis.purchase_source_id, basis.unit_purchase_cost]);
+    const issuedSnapshot = await internal.runBuyingPowerClassification(actor, 'ROLLING_PLANNED', '2032-01-01', `bp-10b-release-issued-${id()}`, [fixture.need], [line]);
+    const issuedSummary = (await internal.getBuyingPowerClassifiedSummary(actor, issuedSnapshot.snapshotId))[0];
+    expect(issuedSummary.released_quantity).toBe('100.0000');
+    expect(issuedSummary.procured_quantity).toBe('60.0000');
+    expect(Number(issuedSummary.procured_quantity)).toBeLessThanOrEqual(Number(issuedSummary.released_quantity));
   });
 });

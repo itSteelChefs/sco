@@ -1,0 +1,2 @@
+ALTER TABLE public.buying_power_snapshot_source_memberships
+  DROP CONSTRAINT IF EXISTS buying_power_snapshot_source_membershi_contribution_class_check;

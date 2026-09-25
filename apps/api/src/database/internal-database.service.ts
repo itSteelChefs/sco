@@ -138,6 +138,11 @@ export class InternalDatabaseService implements OnModuleDestroy {
     const row = (await this.pool.query<{ run_id: string; snapshot_id: string }>('SELECT * FROM public.internal_buying_power_foundation_run($1,$2,$3,$4,$5::uuid[],$6)', [actor, horizon, timeBucket, requestKey, commitmentLineIds, correlationId ?? null])).rows[0];
     return { runId: row.run_id, snapshotId: row.snapshot_id };
   }
+  async runBuyingPowerClassification(actor: string, horizon: 'WEEKLY_IMMEDIATE' | 'ROLLING_PLANNED', timeBucket: string, requestKey: string, needIds: string[], commitmentLineIds: string[], correlationId?: string) {
+    const row = (await this.pool.query<{ run_id: string; snapshot_id: string }>('SELECT * FROM public.internal_buying_power_classified_run($1,$2,$3,$4,$5::uuid[],$6::uuid[],$7)', [actor, horizon, timeBucket, requestKey, needIds, commitmentLineIds, correlationId ?? null])).rows[0];
+    return { runId: row.run_id, snapshotId: row.snapshot_id };
+  }
+  async getBuyingPowerClassifiedSummary(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_classified_summary_get($1,$2)', [actor, snapshotId])).rows; }
   async getBuyingPowerSummary(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_snapshot_summary_get($1,$2)', [actor, snapshotId])).rows; }
   async getBuyingPowerLineage(actor: string, snapshotId: string) { return (await this.pool.query('SELECT * FROM public.internal_buying_power_snapshot_lineage_get($1,$2)', [actor, snapshotId])).rows; }
   async registerSupplierPOCommercialDocument(actor: string, purchaseOrderId: string, documentId: string, versionId: string, documentType: string, classification: string, correlationId?: string) {

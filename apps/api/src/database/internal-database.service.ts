@@ -140,4 +140,7 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getSupplierPOCommercialDocument(actor: string, documentId: string) {
     return (await this.pool.query('SELECT * FROM public.internal_supplier_po_commercial_document_get($1,$2)', [actor, documentId])).rows[0] ?? null;
   }
+  async verifySupplierPOCommercialDocument(actor: string, documentId: string, facts: Record<string, unknown>, correlationId?: string) {
+    return (await this.pool.query<{ id: string; result: string; mismatch_reasons: string[] }>('SELECT * FROM public.internal_supplier_po_commercial_document_verify($1,$2,$3::jsonb,$4)', [actor, documentId, JSON.stringify(facts), correlationId ?? null])).rows[0];
+  }
 }

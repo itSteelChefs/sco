@@ -143,4 +143,19 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async verifySupplierPOCommercialDocument(actor: string, documentId: string, facts: Record<string, unknown>, correlationId?: string) {
     return (await this.pool.query<{ id: string; result: string; mismatch_reasons: string[] }>('SELECT * FROM public.internal_supplier_po_commercial_document_verify($1,$2,$3::jsonb,$4)', [actor, documentId, JSON.stringify(facts), correlationId ?? null])).rows[0];
   }
+  async createSupplierPaymentScheduleDraft(actor: string, purchaseOrderId: string, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_payment_schedule_draft_create($1,$2,$3) AS id', [actor, purchaseOrderId, correlationId ?? null])).rows[0].id;
+  }
+  async addSupplierPaymentScheduleItem(actor: string, revisionId: string, input: { lineNumber: number; triggerType: string; amount: number | string; percentage?: number | string; fixedDate?: string; milestoneDescription?: string; metadata?: Record<string, unknown> }, correlationId?: string) {
+    return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_payment_schedule_item_add($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10) AS id', [actor, revisionId, input.lineNumber, input.triggerType, input.amount, input.percentage ?? null, input.fixedDate ?? null, input.milestoneDescription ?? null, JSON.stringify(input.metadata ?? {}), correlationId ?? null])).rows[0].id;
+  }
+  async updateSupplierPaymentScheduleItem(actor: string, itemId: string, input: { triggerType: string; amount: number | string; percentage?: number | string; fixedDate?: string; milestoneDescription?: string; metadata?: Record<string, unknown> }, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_payment_schedule_item_update($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)', [actor, itemId, input.triggerType, input.amount, input.percentage ?? null, input.fixedDate ?? null, input.milestoneDescription ?? null, JSON.stringify(input.metadata ?? {}), correlationId ?? null]);
+  }
+  async removeSupplierPaymentScheduleItem(actor: string, itemId: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_payment_schedule_item_remove($1,$2,$3)', [actor, itemId, correlationId ?? null]);
+  }
+  async getSupplierPaymentSchedule(actor: string, revisionId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_payment_schedule_get($1,$2)', [actor, revisionId])).rows[0] ?? null;
+  }
 }

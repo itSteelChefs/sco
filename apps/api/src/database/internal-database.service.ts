@@ -204,6 +204,15 @@ export class InternalDatabaseService implements OnModuleDestroy {
       [actor, trancheId],
     )).rows[0] ?? null;
   }
+  async registerWarrantyEntitlement(actor: string, input: { deliveryEventId: string; coveredQuantity: number; startTrigger: 'DELIVERY' | 'RECEIPT' | 'ACCEPTANCE' | 'INSTALLATION' | 'CONTRACTUAL' | 'PROVIDER_DEFINED'; startDate: string; endDate: string; providerType: 'MANUFACTURER' | 'AUTHORIZED_DISTRIBUTOR' | 'SUPPLIER' | 'SCO_CONTRACTUAL' | 'OTHER'; idempotencyKey: string; receiptEventId?: string; acceptanceEventId?: string; startReference?: string; providerCompanyId?: string; providerReference?: string; evidenceDocumentId?: string; evidenceVersionId?: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>(
+      'SELECT public.internal_warranty_entitlement_register($1,$2,$3,$4::public."WarrantyStartTrigger",$5,$6,$7,$8,$9,$10::public."WarrantyProviderType",$11,$12,$13,$14,$15,$16) AS id',
+      [actor, input.deliveryEventId, input.coveredQuantity, input.startTrigger, input.startDate, input.receiptEventId ?? null, input.acceptanceEventId ?? null, input.startReference ?? null, input.endDate, input.providerType, input.providerCompanyId ?? null, input.providerReference ?? null, input.evidenceDocumentId ?? null, input.evidenceVersionId ?? null, input.idempotencyKey, input.correlationId ?? null],
+    )).rows[0].id;
+  }
+  async getWarrantyEntitlement(actor: string, entitlementId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_warranty_entitlement_get($1,$2)', [actor, entitlementId])).rows[0] ?? null;
+  }
   async approveSupplierPaymentSchedule(actor: string, revisionId: string, reason?: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_supplier_payment_schedule_approve($1,$2,$3,$4)', [actor, revisionId, reason ?? null, correlationId ?? null]);
   }

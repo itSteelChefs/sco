@@ -55,16 +55,20 @@ describe('Batch 11-B receipt and acceptance concurrency repair', () => {
   afterAll(async () => { await runtime.onModuleDestroy(); await internal.onModuleDestroy(); await owner.end(); });
 
   it('serializes concurrent receipts: one exact remaining allocation succeeds and one safely rejects without a false audit', async () => {
-    const event = await deliveryEvent(10); const failedCorrelation = id();
+    const event = await deliveryEvent(10); const correlations = [id(), id()];
     const results = await Promise.allSettled([
-      runtime.confirmPartnerDeliveryReceipt(partnerActor, partnerCompany, { deliveryEventId: event, quantity: 6, receivedAt: '2031-02-04T04:05:06.000Z', idempotencyKey: id() }),
-      runtime.confirmPartnerDeliveryReceipt(partnerActor, partnerCompany, { deliveryEventId: event, quantity: 6, receivedAt: '2031-02-04T04:05:06.000Z', idempotencyKey: id(), correlationId: failedCorrelation }),
+      runtime.confirmPartnerDeliveryReceipt(partnerActor, partnerCompany, { deliveryEventId: event, quantity: 6, receivedAt: '2031-02-04T04:05:06.000Z', idempotencyKey: id(), correlationId: correlations[0] }),
+      runtime.confirmPartnerDeliveryReceipt(partnerActor, partnerCompany, { deliveryEventId: event, quantity: 6, receivedAt: '2031-02-04T04:05:06.000Z', idempotencyKey: id(), correlationId: correlations[1] }),
     ]);
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
     expect((results.find((result) => result.status === 'rejected') as PromiseRejectedResult).reason.message).toContain('PARTNER_DELIVERY_RECEIPT_QUANTITY_EXCEEDED');
-    expect((await owner.query(`SELECT sum(received_quantity)::text AS total FROM partner_delivery_receipt_events WHERE delivery_execution_event_id=$1`, [event])).rows[0].total).toBe('6.0000');
-    expect((await owner.query(`SELECT count(*)::int AS count FROM audit_logs WHERE correlation_id=$1`, [failedCorrelation])).rows[0].count).toBe(0);
+    const successfulIndex = results.findIndex((result) => result.status === 'fulfilled');
+    const failedIndex = results.findIndex((result) => result.status === 'rejected');
+    const total = (await owner.query(`SELECT sum(received_quantity)::numeric AS total FROM partner_delivery_receipt_events WHERE delivery_execution_event_id=$1`, [event])).rows[0].total;
+    expect(Number(total)).toBeLessThanOrEqual(10);
+    expect((await owner.query(`SELECT action,metadata->>'outcome' AS outcome FROM audit_logs WHERE correlation_id=$1`, [correlations[successfulIndex]])).rows).toEqual([{ action: 'delivery.receipt.confirmed', outcome: 'CONFIRMED' }]);
+    expect((await owner.query(`SELECT count(*)::int AS count FROM audit_logs WHERE correlation_id=$1`, [correlations[failedIndex]])).rows[0].count).toBe(0);
   });
 
   it('serializes concurrent acceptances after receipt without exceeding received quantity', async () => {

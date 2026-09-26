@@ -107,6 +107,20 @@ export class RuntimeDatabaseService implements OnModuleDestroy {
     });
   }
 
+  async getPartnerWarrantyEntitlements(actor: string, companyId: string) {
+    return this.withActor(actor, async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query('SELECT * FROM public.partner_warranty_entitlement_list($1,$2)', [actor, companyId])).rows;
+    });
+  }
+
+  async getPartnerWarrantyEntitlementEvidence(actor: string, companyId: string, entitlementId: string) {
+    return this.withActor(actor, async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query('SELECT * FROM public.partner_warranty_entitlement_evidence_list($1,$2,$3)', [actor, companyId, entitlementId])).rows;
+    });
+  }
+
   async recordPaymentReceipt(actor: string, companyId: string, input: { requirementId: string; amount: number; currency: string; paymentDate: string; method?: string; reference?: string; evidenceReference?: string; idempotencyKey?: string; correlationId?: string }) {
     return this.withTransaction(async (client) => {
       await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);

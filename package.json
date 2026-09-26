@@ -18,6 +18,9 @@
     ]
   },
   "scripts": {
+    "ci:migrations": "node scripts/ci/check-migrations.mjs",
+    "ci:secrets": "node scripts/ci/check-sensitive-files.mjs",
+    "ci:prepare-db": "node scripts/ci/prepare-test-database.mjs",
     "db:up": "docker compose -f infrastructure/compose/development.yml up -d --wait",
     "db:down": "docker compose -f infrastructure/compose/development.yml down",
     "db:migrate": "set -a && . ./.env && set +a && corepack pnpm --filter @sco/api exec prisma migrate deploy --schema=prisma/schema.prisma",

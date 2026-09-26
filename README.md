@@ -15,3 +15,9 @@ Development commands:
 - `corepack pnpm dev:api`, `corepack pnpm dev:partner`, `corepack pnpm dev:operations`
 
 The API uses a non-owner `sco_runtime` role. Never commit `.env`; it is ignored and contains development-only values. The only current scope is `sco.sa`; legacy meeting systems are outside this repository.
+
+Production runtime and delivery guidance:
+
+- `docs/architecture/stage-004-batch-1-runtime-foundation.md`
+- `docs/architecture/stage-004-batch-2-ci-cd-foundation.md`
+- `docs/runbooks/release.md`

@@ -1,4 +1,4 @@
-FROM node:20-alpine AS dependencies
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS dependencies
 
 WORKDIR /workspace
 ENV PNPM_HOME=/pnpm
@@ -19,7 +19,7 @@ RUN pnpm --filter @sco/api exec prisma generate --schema prisma/schema.prisma
 RUN pnpm --filter @sco/api run build
 RUN pnpm prune --prod
 
-FROM node:20-alpine AS runtime
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runtime
 
 WORKDIR /workspace
 ENV NODE_ENV=production

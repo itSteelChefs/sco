@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ $# -ne 10 ]]; then
-  echo 'Usage: docker-host-release.sh DEPLOY_PATH RELEASE_SHA API_IMAGE PARTNER_IMAGE OPERATIONS_IMAGE NETWORK BIND_ADDRESS API_PORT PARTNER_PORT OPERATIONS_PORT' >&2
+if [[ $# -ne 11 ]]; then
+  echo 'Usage: docker-host-release.sh DEPLOY_PATH ENVIRONMENT RELEASE_SHA API_IMAGE PARTNER_IMAGE OPERATIONS_IMAGE NETWORK BIND_ADDRESS API_PORT PARTNER_PORT OPERATIONS_PORT' >&2
   exit 64
 fi
 
 deploy_path=$1
-release_sha=$2
-api_image=$3
-partner_image=$4
-operations_image=$5
-network=$6
-bind_address=$7
-api_port=$8
-partner_port=$9
-operations_port=${10}
+deployment_environment=$2
+release_sha=$3
+api_image=$4
+partner_image=$5
+operations_image=$6
+network=$7
+bind_address=$8
+api_port=$9
+partner_port=${10}
+operations_port=${11}
 
 [[ $deploy_path =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo 'Invalid deployment path' >&2; exit 64; }
+[[ $deployment_environment == staging || $deployment_environment == production ]] || { echo 'Invalid deployment environment' >&2; exit 64; }
 [[ $release_sha =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA' >&2; exit 64; }
 [[ $network =~ ^[A-Za-z0-9_.-]+$ ]] || { echo 'Invalid Docker network' >&2; exit 64; }
 [[ $bind_address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo 'Bind address must be IPv4' >&2; exit 64; }
@@ -32,8 +34,11 @@ done
 
 runtime_env="$deploy_path/runtime.env"
 migration_env="$deploy_path/migration.env"
-[[ -f $runtime_env && -f $migration_env ]] || { echo 'Deployment environment files are missing' >&2; exit 78; }
-[[ $(stat -c '%a' "$runtime_env") == 600 && $(stat -c '%a' "$migration_env") == 600 ]] || { echo 'Deployment environment files must use mode 0600' >&2; exit 78; }
+web_env="$deploy_path/web.env"
+[[ -f $runtime_env && -f $migration_env && -f $web_env ]] || { echo 'Deployment environment files are missing' >&2; exit 78; }
+for environment_file in "$runtime_env" "$migration_env" "$web_env"; do
+  [[ $(stat -c '%a' "$environment_file") == 600 ]] || { echo 'Deployment environment files must use mode 0600' >&2; exit 78; }
+done
 
 docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network" >/dev/null
 docker pull "$api_image" >/dev/null
@@ -67,15 +72,15 @@ for service in sco-api sco-partner-web sco-operations-web; do
 done
 
 docker run -d --restart unless-stopped --name sco-api --network "$network" \
-  --env-file "$runtime_env" -p "${bind_address}:${api_port}:3101" \
+  --env-file "$runtime_env" -e "SCO_RELEASE_SHA=$release_sha" -e 'SCO_SERVICE_NAME=sco-api' -e "SENTRY_RELEASE=$release_sha" -e "SENTRY_ENVIRONMENT=$deployment_environment" -p "${bind_address}:${api_port}:3101" \
   --label "com.sco.release.sha=$release_sha" --label "com.sco.image.digest=$api_image" "$api_image" >/dev/null
 started_services+=(sco-api)
 docker run -d --restart unless-stopped --name sco-partner-web --network "$network" \
-  -p "${bind_address}:${partner_port}:3102" \
+  --env-file "$web_env" -e "SCO_RELEASE_SHA=$release_sha" -e 'SCO_SERVICE_NAME=sco-partner-web' -e "SENTRY_RELEASE=$release_sha" -e "SENTRY_ENVIRONMENT=$deployment_environment" -p "${bind_address}:${partner_port}:3102" \
   --label "com.sco.release.sha=$release_sha" --label "com.sco.image.digest=$partner_image" "$partner_image" >/dev/null
 started_services+=(sco-partner-web)
 docker run -d --restart unless-stopped --name sco-operations-web --network "$network" \
-  -p "${bind_address}:${operations_port}:3103" \
+  --env-file "$web_env" -e "SCO_RELEASE_SHA=$release_sha" -e 'SCO_SERVICE_NAME=sco-operations-web' -e "SENTRY_RELEASE=$release_sha" -e "SENTRY_ENVIRONMENT=$deployment_environment" -p "${bind_address}:${operations_port}:3103" \
   --label "com.sco.release.sha=$release_sha" --label "com.sco.image.digest=$operations_image" "$operations_image" >/dev/null
 started_services+=(sco-operations-web)
 

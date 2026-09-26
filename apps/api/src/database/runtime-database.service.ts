@@ -40,6 +40,10 @@ export class RuntimeDatabaseService implements OnModuleDestroy {
     await this.pool.query('SELECT 1');
   }
 
+  poolStats() {
+    return { total: this.pool.totalCount, idle: this.pool.idleCount, waiting: this.pool.waitingCount };
+  }
+
   async submitPartnerPurchaseOrder(actor: string, companyId: string, input: {
     offerId: string;
     offerRevisionId: string;

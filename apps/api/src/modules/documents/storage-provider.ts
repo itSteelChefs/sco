@@ -1,6 +1,7 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { DevelopmentStorageProvider } from './development-storage.provider.js';
 import { S3StorageProvider } from './s3-storage.provider.js';
+import type { MetricsService } from '../../observability/metrics.service.js';
 
 export const DOCUMENT_STORAGE = Symbol('DOCUMENT_STORAGE');
 
@@ -20,7 +21,7 @@ function required(source: DocumentStorageEnvironment, name: string): string {
   return value;
 }
 
-export function createDocumentStorageProvider(source: DocumentStorageEnvironment = process.env): StorageProvider {
+export function createDocumentStorageProvider(source: DocumentStorageEnvironment = process.env, metrics?: MetricsService): StorageProvider {
   const environment = source.NODE_ENV ?? 'development';
   const storage = source.SCO_DOCUMENT_STORAGE;
 
@@ -46,5 +47,5 @@ export function createDocumentStorageProvider(source: DocumentStorageEnvironment
       sessionToken: source.SCO_S3_SESSION_TOKEN?.trim() || undefined,
     },
   });
-  return new S3StorageProvider(client, required(source, 'SCO_S3_BUCKET'));
+  return new S3StorageProvider(client, required(source, 'SCO_S3_BUCKET'), metrics);
 }

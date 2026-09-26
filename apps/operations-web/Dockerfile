@@ -11,6 +11,10 @@ RUN pnpm install --frozen-lockfile
 
 FROM dependencies AS build
 
+ARG RELEASE_SHA=unknown
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_RELEASE=$RELEASE_SHA
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 COPY apps/operations-web ./apps/operations-web
 RUN pnpm --filter @sco/operations-web run build
 
@@ -20,7 +24,10 @@ WORKDIR /workspace
 ENV NODE_ENV=production
 ENV PORT=3103
 ENV HOSTNAME=0.0.0.0
-RUN addgroup -S sco && adduser -S sco -G sco
+RUN apk upgrade --no-cache \
+	&& rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+	&& rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+	&& addgroup -S sco && adduser -S sco -G sco
 
 COPY --from=build --chown=sco:sco /workspace/apps/operations-web/.next/standalone ./
 COPY --from=build --chown=sco:sco /workspace/apps/operations-web/.next/static ./apps/operations-web/.next/static

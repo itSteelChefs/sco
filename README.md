@@ -20,4 +20,6 @@ Production runtime and delivery guidance:
 
 - `docs/architecture/stage-004-batch-1-runtime-foundation.md`
 - `docs/architecture/stage-004-batch-2-ci-cd-foundation.md`
+- `docs/architecture/stage-004-batch-3-observability-foundation.md`
 - `docs/runbooks/release.md`
+- `docs/runbooks/observability.md`

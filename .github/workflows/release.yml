@@ -69,6 +69,8 @@ jobs:
         id: publish
         env:
           RELEASE_SHA: ${{ needs.authorize-release.outputs.release_sha }}
+          PARTNER_WEB_SENTRY_DSN: ${{ vars.PARTNER_WEB_SENTRY_DSN }}
+          OPERATIONS_WEB_SENTRY_DSN: ${{ vars.OPERATIONS_WEB_SENTRY_DSN }}
         run: |
           set -Eeuo pipefail
           namespace=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
@@ -80,8 +82,8 @@ jobs:
             fi
           done
           docker buildx build --file apps/api/Dockerfile --tag "ghcr.io/$namespace/api:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file api.json .
-          docker buildx build --file apps/partner-web/Dockerfile --tag "ghcr.io/$namespace/partner-web:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file partner.json .
-          docker buildx build --file apps/operations-web/Dockerfile --tag "ghcr.io/$namespace/operations-web:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file operations.json .
+          docker buildx build --file apps/partner-web/Dockerfile --build-arg "RELEASE_SHA=$RELEASE_SHA" --build-arg "NEXT_PUBLIC_SENTRY_DSN=$PARTNER_WEB_SENTRY_DSN" --tag "ghcr.io/$namespace/partner-web:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file partner.json .
+          docker buildx build --file apps/operations-web/Dockerfile --build-arg "RELEASE_SHA=$RELEASE_SHA" --build-arg "NEXT_PUBLIC_SENTRY_DSN=$OPERATIONS_WEB_SENTRY_DSN" --tag "ghcr.io/$namespace/operations-web:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file operations.json .
           api_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' api.json)
           partner_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' partner.json)
           operations_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' operations.json)
@@ -125,6 +127,7 @@ jobs:
           OPERATIONS_PORT: ${{ vars.OPERATIONS_PORT }}
           DEPLOY_RUNTIME_ENV: ${{ secrets.DEPLOY_RUNTIME_ENV }}
           DEPLOY_MIGRATION_ENV: ${{ secrets.DEPLOY_MIGRATION_ENV }}
+          DEPLOY_WEB_ENV: ${{ secrets.DEPLOY_WEB_ENV }}
           GHCR_USERNAME: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
         run: bash scripts/deploy/deploy-over-ssh.sh "${{ needs.authorize-release.outputs.release_sha }}" "${{ needs.publish-images.outputs.api_image }}" "${{ needs.publish-images.outputs.partner_image }}" "${{ needs.publish-images.outputs.operations_image }}"
@@ -162,6 +165,7 @@ jobs:
           OPERATIONS_PORT: ${{ vars.OPERATIONS_PORT }}
           DEPLOY_RUNTIME_ENV: ${{ secrets.DEPLOY_RUNTIME_ENV }}
           DEPLOY_MIGRATION_ENV: ${{ secrets.DEPLOY_MIGRATION_ENV }}
+          DEPLOY_WEB_ENV: ${{ secrets.DEPLOY_WEB_ENV }}
           GHCR_USERNAME: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
         run: bash scripts/deploy/deploy-over-ssh.sh "${{ needs.authorize-release.outputs.release_sha }}" "${{ needs.publish-images.outputs.api_image }}" "${{ needs.publish-images.outputs.partner_image }}" "${{ needs.publish-images.outputs.operations_image }}"

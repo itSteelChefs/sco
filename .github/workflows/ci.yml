@@ -46,6 +46,26 @@ jobs:
       - name: Reject generated tracked changes
         run: git diff --exit-code
 
+  security-tools:
+    name: Workflow, secret, dependency, and configuration security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Install pinned checksum-verified security tools
+        run: |
+          scripts/ci/install-security-tools.sh "$RUNNER_TEMP/security-tools"
+          echo "$RUNNER_TEMP/security-tools" >> "$GITHUB_PATH"
+      - run: actionlint .github/workflows/*.yml
+      - name: Scan Git history and current content with redaction
+        run: scripts/ci/run-gitleaks.sh
+      - name: Scan filesystem dependencies and configuration
+        run: trivy fs --cache-dir "$RUNNER_TEMP/trivy-cache" --scanners vuln,misconfig --include-dev-deps --severity HIGH,CRITICAL --no-progress --exit-code 1 .
+
   security-gate:
     name: Security gate on clean PostgreSQL
     runs-on: ubuntu-24.04
@@ -136,7 +156,13 @@ jobs:
             dockerfile: apps/operations-web/Dockerfile
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install pinned checksum-verified Trivy
+        run: |
+          scripts/ci/install-security-tools.sh "$RUNNER_TEMP/security-tools" trivy
+          echo "$RUNNER_TEMP/security-tools" >> "$GITHUB_PATH"
       - name: Build production image without publishing
         run: docker build --file "${{ matrix.dockerfile }}" --tag "sco-${{ matrix.image }}:${GITHUB_SHA}" .
       - name: Verify non-root runtime
         run: test "$(docker image inspect --format '{{.Config.User}}' "sco-${{ matrix.image }}:${GITHUB_SHA}")" = sco
+      - name: Scan production image
+        run: trivy image --cache-dir "$RUNNER_TEMP/trivy-cache" --scanners vuln,misconfig --image-config-scanners misconfig --severity HIGH,CRITICAL --no-progress --exit-code 1 "sco-${{ matrix.image }}:${GITHUB_SHA}"

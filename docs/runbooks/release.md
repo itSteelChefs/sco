@@ -23,6 +23,7 @@ Configure these GitHub Environment secrets independently in `staging` and `produ
 - `DEPLOY_KNOWN_HOSTS`
 - `DEPLOY_RUNTIME_ENV`
 - `DEPLOY_MIGRATION_ENV`
+- `DEPLOY_WEB_ENV`
 
 Configure these Environment variables:
 
@@ -33,12 +34,13 @@ Configure these Environment variables:
 - `DEPLOY_BIND_ADDRESS`: IPv4 host bind address; defaults to `127.0.0.1`. IPv6 binding is not supported by this Batch.
 - `API_PORT`, `PARTNER_PORT`, `OPERATIONS_PORT`: host ports; default to `3101`, `3102`, and `3103`.
 
+Optionally configure repository variables `PARTNER_WEB_SENTRY_DSN` and `OPERATIONS_WEB_SENTRY_DSN` to enable browser error reporting. Sentry DSNs are public routing identifiers, not secrets. They are baked into the single promoted image; browser events use the deployment hostname as their environment.
+
 `DEPLOY_RUNTIME_ENV` is a Docker env-file payload. It must include the complete API runtime contract, including:
 
 ```text
 NODE_ENV=staging-or-production
 SCO_DEPLOY_ENVIRONMENT=matching-environment
-DATABASE_URL=environment-specific-value
 RUNTIME_DATABASE_URL=environment-specific-value
 SCO_INTERNAL_DATABASE_URL=environment-specific-value
 SESSION_SECRET=environment-specific-value
@@ -49,7 +51,7 @@ SCO_S3_ACCESS_KEY_ID=environment-specific-value
 SCO_S3_SECRET_ACCESS_KEY=environment-specific-value
 ```
 
-Add endpoint, path-style, or session-token settings only when required by the chosen S3-compatible provider. `DEPLOY_MIGRATION_ENV` contains only the matching `SCO_DEPLOY_ENVIRONMENT` marker and the privileged `DATABASE_URL` needed by Prisma. Never reuse staging credentials in Production.
+Add endpoint, path-style, or session-token settings only when required by the chosen S3-compatible provider. `DEPLOY_RUNTIME_ENV` must not contain the privileged `DATABASE_URL`. `DEPLOY_MIGRATION_ENV` contains only the matching `SCO_DEPLOY_ENVIRONMENT` marker and the privileged `DATABASE_URL` needed by Prisma. `DEPLOY_WEB_ENV` contains the matching environment marker and optional server-side Sentry settings only; it must never contain database, storage, or session credentials. The deployment script enforces these credential boundaries. Never reuse staging credentials in Production.
 
 ## Release
 

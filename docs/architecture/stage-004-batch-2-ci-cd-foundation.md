@@ -45,7 +45,7 @@ Schema changes must use expand-and-contract compatibility so the previous applic
 
 Release identity is the full Git commit SHA. Images use `ghcr.io/<repository>/api:<sha>`, `partner-web:<sha>`, and `operations-web:<sha>` for traceability, but deployment accepts only `ghcr.io/...@sha256:<digest>`. `latest` is never produced or consumed. Existing SHA tags are not overwritten.
 
-Staging and Production are separate GitHub Environments with separate secrets. Pull-request jobs cannot reference either environment. The SSH transport writes runtime and migration payloads through standard input into mode `0600` files; secret values are not command arguments or logs. Host keys are pinned by `DEPLOY_KNOWN_HOSTS`; dynamic `ssh-keyscan` trust is prohibited.
+Staging and Production are separate GitHub Environments with separate secrets. Pull-request jobs cannot reference either environment. The SSH transport writes API runtime, one-shot migration, and web payloads through standard input into mode `0600` files; secret values are not command arguments or logs. The privileged migration `DATABASE_URL` is rejected from the long-running API payload, and API/database/storage/session credentials are rejected from the web payload. Host keys are pinned by `DEPLOY_KNOWN_HOSTS`; dynamic `ssh-keyscan` trust is prohibited.
 
 Runtime payloads must contain matching `NODE_ENV` and `SCO_DEPLOY_ENVIRONMENT` markers plus `SCO_DOCUMENT_STORAGE=s3`. Migration payloads require the same environment marker. A mismatched or incomplete environment fails closed before SSH deployment.
 

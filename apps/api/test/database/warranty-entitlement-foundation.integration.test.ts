@@ -138,6 +138,9 @@ describe('Batch 11-C warranty entitlement foundation', () => {
     expect(grants.rows[0]).toEqual({ runtime_select: false, public_register: false, runtime_register: false });
     const functions = await owner.query(`SELECT prosecdef,proconfig FROM pg_proc WHERE oid='public.internal_warranty_entitlement_register(uuid,uuid,numeric,"WarrantyStartTrigger",date,uuid,uuid,text,date,"WarrantyProviderType",uuid,text,uuid,uuid,text,text)'::regprocedure`);
     expect(functions.rows[0].prosecdef).toBe(true); expect(functions.rows[0].proconfig).toContain('search_path=pg_catalog, public');
+    const partnerGateway = await owner.query(`SELECT has_function_privilege('public','public.partner_warranty_entitlement_list(uuid,uuid)','EXECUTE') public_list,has_function_privilege('sco_internal_executor','public.partner_warranty_entitlement_list(uuid,uuid)','EXECUTE') internal_list,has_function_privilege('sco_runtime','public.partner_warranty_entitlement_list(uuid,uuid)','EXECUTE') runtime_list,prosecdef,proconfig FROM pg_proc WHERE oid='public.partner_warranty_entitlement_list(uuid,uuid)'::regprocedure`);
+    expect(partnerGateway.rows[0]).toMatchObject({ public_list: false, internal_list: false, runtime_list: true, prosecdef: true });
+    expect(partnerGateway.rows[0].proconfig).toContain('search_path=pg_catalog, public');
     const runtimeClient = new Client({ connectionString: process.env.RUNTIME_DATABASE_URL }); await runtimeClient.connect();
     try { await expect(runtimeClient.query(`SELECT public.internal_warranty_entitlement_register($1,$2,$3,'DELIVERY',$4,NULL,NULL,NULL,$5,'SUPPLIER',$6,NULL,NULL,NULL,$7,NULL)`, [creator, event, 1, '2031-02-03', '2032-02-03', base.supplier_company_id, id()])).rejects.toThrow(/permission denied/i); } finally { await runtimeClient.end(); }
     await owner.query('BEGIN');

@@ -213,6 +213,36 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getWarrantyEntitlement(actor: string, entitlementId: string) {
     return (await this.pool.query('SELECT * FROM public.internal_warranty_entitlement_get($1,$2)', [actor, entitlementId])).rows[0] ?? null;
   }
+  async createSupplierFutureDemandFramework(actor: string, input: { reference: string; supplierCompanyId: string; supplierPartnershipId: string; purchaseSourceId: string; effectiveFrom: string; effectiveUntil: string; scopeLines: Array<{ productIdentityId: string; unitId: string }>; idempotencyKey: string; correlationId?: string }) {
+    return (await this.pool.query<{ framework_id: string; revision_id: string }>(
+      'SELECT * FROM public.internal_supplier_future_demand_framework_create($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)',
+      [actor, input.reference, input.supplierCompanyId, input.supplierPartnershipId, input.purchaseSourceId, input.effectiveFrom, input.effectiveUntil, JSON.stringify(input.scopeLines), input.idempotencyKey, input.correlationId ?? null],
+    )).rows[0];
+  }
+  async createSupplierFutureDemandFrameworkRevision(actor: string, frameworkId: string, input: { effectiveFrom: string; effectiveUntil: string; scopeLines: Array<{ productIdentityId: string; unitId: string }>; idempotencyKey: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>(
+      'SELECT public.internal_supplier_future_demand_framework_revision_create($1,$2,$3,$4,$5::jsonb,$6,$7) AS id',
+      [actor, frameworkId, input.effectiveFrom, input.effectiveUntil, JSON.stringify(input.scopeLines), input.idempotencyKey, input.correlationId ?? null],
+    )).rows[0].id;
+  }
+  async approveSupplierFutureDemandFramework(actor: string, revisionId: string, idempotencyKey: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_future_demand_framework_approve($1,$2,$3,$4)', [actor, revisionId, idempotencyKey, correlationId ?? null]);
+  }
+  async offerSupplierFutureDemandFramework(actor: string, revisionId: string, idempotencyKey: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_future_demand_framework_offer($1,$2,$3,$4)', [actor, revisionId, idempotencyKey, correlationId ?? null]);
+  }
+  async acceptSupplierFutureDemandFramework(actor: string, revisionId: string, input: { idempotencyKey: string; documentId?: string; documentVersionId?: string; reference?: string; correlationId?: string }) {
+    await this.pool.query('SELECT public.internal_supplier_future_demand_framework_accept($1,$2,$3,$4,$5,$6,$7)', [actor, revisionId, input.documentId ?? null, input.documentVersionId ?? null, input.reference ?? null, input.idempotencyKey, input.correlationId ?? null]);
+  }
+  async supersedeSupplierFutureDemandFramework(actor: string, revisionId: string, idempotencyKey: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_future_demand_framework_supersede($1,$2,$3,$4)', [actor, revisionId, idempotencyKey, correlationId ?? null]);
+  }
+  async terminateSupplierFutureDemandFramework(actor: string, frameworkId: string, reason: string, idempotencyKey: string, correlationId?: string) {
+    await this.pool.query('SELECT public.internal_supplier_future_demand_framework_terminate($1,$2,$3,$4,$5)', [actor, frameworkId, reason, idempotencyKey, correlationId ?? null]);
+  }
+  async getSupplierFutureDemandFramework(actor: string, frameworkId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_future_demand_framework_get($1,$2)', [actor, frameworkId])).rows;
+  }
   async approveSupplierPaymentSchedule(actor: string, revisionId: string, reason?: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_supplier_payment_schedule_approve($1,$2,$3,$4)', [actor, revisionId, reason ?? null, correlationId ?? null]);
   }

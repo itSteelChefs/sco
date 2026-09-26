@@ -1,13 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { forbidden } from '../../common/http/api-error.js';
 import { InternalDatabaseService } from '../../database/internal-database.service.js';
-import { DevelopmentStorageProvider } from './development-storage.provider.js';
+import { DOCUMENT_STORAGE, type StorageProvider } from './storage-provider.js';
 
 @Injectable()
 export class SupplierQuoteDocumentService {
   constructor(
     @Inject(InternalDatabaseService) private readonly internal: InternalDatabaseService,
-    @Inject(DevelopmentStorageProvider) private readonly storage: DevelopmentStorageProvider,
+    @Inject(DOCUMENT_STORAGE) private readonly storage: StorageProvider,
   ) {}
 
   async metadata(actorId: string, documentId: string) {

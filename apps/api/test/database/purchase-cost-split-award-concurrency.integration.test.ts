@@ -85,10 +85,15 @@ describe('Purchase cost split award real PostgreSQL concurrency', () => {
       const transactionBPid = (await transactionB.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
       try {
         await insertSnapshot(transactionA, record.rfqItemId, await revision(record.rfqId));
-        const competing = insertSnapshot(transactionB, record.rfqItemId, await revision(record.rfqId));
+        const competing = insertSnapshot(transactionB, record.rfqItemId, await revision(record.rfqId)).then(
+          () => ({ status: 'fulfilled' as const }),
+          (error: unknown) => ({ status: 'rejected' as const, error }),
+        );
         expect(await waitForLock(transactionBPid)).toBe(true);
         await transactionA.query('COMMIT');
-        await expect(competing).rejects.toThrow('APPROVED_QUANTITY_EXCEEDED');
+        const competingResult = await competing;
+        expect(competingResult.status).toBe('rejected');
+        if (competingResult.status === 'rejected') expect(competingResult.error).toMatchObject({ message: 'APPROVED_QUANTITY_EXCEEDED' });
         await transactionB.query('ROLLBACK');
       } finally {
         await transactionA.end(); await transactionB.end();

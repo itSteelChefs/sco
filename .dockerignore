@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.git
+.github
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+coverage
+playwright-report
+test-results
+storage-development
+apps/api/storage-development
+docs

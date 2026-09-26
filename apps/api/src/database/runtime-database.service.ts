@@ -36,6 +36,10 @@ export class RuntimeDatabaseService implements OnModuleDestroy {
     return result.rows[0].current_user;
   }
 
+  async ping(): Promise<void> {
+    await this.pool.query('SELECT 1');
+  }
+
   async submitPartnerPurchaseOrder(actor: string, companyId: string, input: {
     offerId: string;
     offerRevisionId: string;

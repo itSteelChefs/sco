@@ -19,10 +19,10 @@ export class DevelopmentStorageProvider implements StorageProvider {
     const safeKey = storageKey.split('/').map((segment) => basename(segment)).join('/');
     const absolutePath = resolve(this.root, safeKey);
     if (!absolutePath.startsWith(`${this.root}/`)) throw new Error('INVALID_STORAGE_KEY');
-    return { storageKey: safeKey, absolutePath };
+    return { storageKey: safeKey };
   }
   async readPrivate(storageKey: string): Promise<Uint8Array> {
     const authorized = await this.authorizeDownload(storageKey);
-    return readFile(authorized.absolutePath);
+    return readFile(resolve(this.root, authorized.storageKey));
   }
 }

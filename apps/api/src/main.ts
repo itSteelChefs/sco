@@ -5,9 +5,10 @@ import { AppModule } from './app.module.js';
 import { ApiValidationPipe } from './common/http/validation-pipe.js';
 export async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
+  app.enableShutdownHooks();
   app.setGlobalPrefix('');
   app.useGlobalPipes(new ApiValidationPipe());
-  await app.listen(Number(process.env.PORT ?? 3101), '127.0.0.1');
+  await app.listen(Number(process.env.PORT ?? 3101), '0.0.0.0');
   return app;
 }
 if (process.env.NODE_ENV !== 'test') bootstrap();

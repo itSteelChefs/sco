@@ -3,13 +3,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { forbidden, notFound } from '../../common/http/api-error.js';
 import { TenantTransactionService } from '../../database/tenant-transaction.service.js';
 import type { TenantContext } from '../../common/tenant/tenant-context.js';
-import { DevelopmentStorageProvider } from './development-storage.provider.js';
+import { DOCUMENT_STORAGE, type StorageProvider } from './storage-provider.js';
 
 @Injectable()
 export class DocumentsService {
   constructor(
     @Inject(TenantTransactionService) private readonly tenants: TenantTransactionService,
-    @Inject(DevelopmentStorageProvider) private readonly storage: DevelopmentStorageProvider,
+    @Inject(DOCUMENT_STORAGE) private readonly storage: StorageProvider,
   ) {}
   async authorizeDownload(documentId: string, context: TenantContext) {
     const row = await this.tenants.withTenant(context.userId, context.companyId, (client) => client.query<{ storageKey: string }>('SELECT storage_key AS "storageKey" FROM documents WHERE id = $1', [documentId]));

@@ -17,9 +17,9 @@ Use an isolated temporary PostgreSQL database. Do not copy `sco_dev`, restore a 
 2. Run `corepack pnpm --filter @sco/api exec prisma validate --schema prisma/schema.prisma`.
 3. Run `corepack pnpm --filter @sco/api exec prisma migrate deploy --schema prisma/schema.prisma`.
 4. Run `corepack pnpm --filter @sco/api exec prisma migrate status --schema prisma/schema.prisma`.
-5. Run `corepack pnpm --filter @sco/api prisma db seed`.
-6. Run the security gate in that clean database: `corepack pnpm --filter @sco/api vitest run test/integration/security-gate.integration.test.ts`.
-7. Run the database security checks in that clean database: `corepack pnpm --filter @sco/api vitest run test/database/postgres-rls.integration.test.ts test/database/stage-003-adversarial-security.integration.test.ts`.
+5. Run `corepack pnpm --filter @sco/api exec prisma db seed`.
+6. Run the security gate in that clean database: `corepack pnpm --filter @sco/api exec vitest run test/integration/security-gate.integration.test.ts`.
+7. Run the database security checks in that clean database: `corepack pnpm --filter @sco/api exec vitest run test/database/postgres-rls.integration.test.ts test/database/stage-003-adversarial-security.integration.test.ts`.
 8. For the full regression, create a second clean database, migrate and seed it, then run `corepack pnpm --filter @sco/api test`.
 9. Drop every temporary database after verification.
 
@@ -31,8 +31,8 @@ The security gate owns global identity fixtures and must run before a full regre
 - Runtime database configuration: `RUNTIME_DATABASE_URL` connects as `sco_runtime`.
 - Internal database configuration: `SCO_INTERNAL_DATABASE_URL` connects as `sco_internal_executor`.
 - Development-only seed input: `SCO_SEED_PASSWORD` is optional; an ephemeral seed password is generated when it is absent. Seeding is refused when `NODE_ENV=production`.
-- Optional listener configuration: `PORT` defaults to `3101`; the API binds to `127.0.0.1`.
-- The current configuration has no storage-specific environment key. Development document data uses the repository's local development storage layout.
+- Optional listener configuration: `PORT` defaults to `3101`; the API binds to `0.0.0.0` so container networking can reach it. Local exposure remains the operator's responsibility.
+- `SCO_DOCUMENT_STORAGE=local` is allowed only for development and test. Staging and production must set `SCO_DOCUMENT_STORAGE=s3` plus the required private S3-compatible bucket, region, and credentials. The application fails closed otherwise; see `docs/architecture/stage-004-batch-1-runtime-foundation.md` for the full non-secret contract.
 
 Migrations provision the runtime and internal roles. Both must be login roles without `BYPASSRLS`; do not grant table privileges or repair role state manually. Application startup is safe to probe locally against a temporary database by initializing and immediately closing the API. Do not expose it publicly.
 

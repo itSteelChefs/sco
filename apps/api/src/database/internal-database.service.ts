@@ -9,6 +9,7 @@ export type CreatePricingInput = { caseId?: string; partnerCompanyId: string; cu
 export class InternalDatabaseService implements OnModuleDestroy {
   private readonly pool = new Pool({ connectionString: process.env.SCO_INTERNAL_DATABASE_URL });
   async onModuleDestroy() { await this.pool.end(); }
+  async ping(): Promise<void> { await this.pool.query('SELECT 1'); }
   async canSelfApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_self_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }
   async canApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }
   async supplierQuoteDocument(actorId: string, documentId: string) { const result=await this.pool.query<{filename:string;detected_mime_type:string;byte_size:number;storage_key:string}>('SELECT * FROM public.get_supplier_quote_document($1,$2)',[documentId,actorId]); return result.rows[0] ?? null; }

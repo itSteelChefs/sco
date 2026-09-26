@@ -164,4 +164,39 @@ describe('Batch 12-B Supplier Future-Demand Framework commercial terms', () => {
     await expect(service.createSupplierFutureDemandFrameworkCommercialTerm(actor, framework.revision_id, { productIdentityId: productIdentity, unitId: unit, pricingKind: 'FIXED', fixedUnitPurchasePrice: 0, currencyCode: 'SAR', taxTreatment: 'VAT_EXCLUSIVE', idempotencyKey: uuid() })).rejects.toThrow('SUPPLIER_FUTURE_DEMAND_FRAMEWORK_COMMERCIAL_INVALID');
     expect((await database.query(`SELECT count(*)::int count FROM audit_logs WHERE action='supplier_future_demand_framework.commercial_term_created'`)).rows[0].count).toBe(auditBefore.rows[0].count);
   });
+
+  it('denies partner, supplier, and dual-role runtime spoofing across every Batch 12 table and gateway', async () => {
+    const framework = await draftFramework();
+    const dualRoleCompany = uuid(); const dualRoleUser = uuid();
+    await database.query(`INSERT INTO "Company"(id,name,type) VALUES($1,$2,'PARTNER')`, [dualRoleCompany, `dual-role-${dualRoleCompany}`]);
+    await database.query(`INSERT INTO company_partnerships(company_id,type,status) VALUES($1,'BUYER_PARTNERSHIP','ACTIVE'),($1,'SUPPLIER_PARTNERSHIP','ACTIVE')`, [dualRoleCompany]);
+    await database.query(`INSERT INTO "User"(id,email,"passwordHash") VALUES($1,$2,'x')`, [dualRoleUser, `${dualRoleUser}@sfd-dual-role.test`]);
+    await database.query(`INSERT INTO "CompanyMembership"(id,"userId","companyId",status) VALUES($1,$2,$3,'ACTIVE')`, [uuid(), dualRoleUser, dualRoleCompany]);
+    const tableNames = [
+      'supplier_future_demand_frameworks', 'supplier_future_demand_framework_revisions',
+      'supplier_future_demand_framework_scope_lines', 'supplier_future_demand_framework_lifecycle_events',
+      'supplier_future_demand_framework_commercial_terms', 'supplier_future_demand_framework_price_tiers',
+      'supplier_future_demand_framework_capacity_periods', 'supplier_future_demand_framework_buying_power_provenance',
+    ];
+    const tables = await database.query(`SELECT relname,relrowsecurity,relforcerowsecurity,has_table_privilege('sco_runtime',format('public.%I',relname),'SELECT') runtime_select,has_table_privilege('sco_internal_executor',format('public.%I',relname),'SELECT') internal_select FROM pg_class WHERE relkind='r' AND relname=ANY($1) ORDER BY relname`, [tableNames]);
+    expect(tables.rows).toHaveLength(tableNames.length);
+    expect(tables.rows.every((table: any) => table.relrowsecurity && table.relforcerowsecurity && !table.runtime_select && !table.internal_select)).toBe(true);
+
+    const gateways = await database.query(`SELECT proname,prosecdef,proconfig,has_function_privilege('public',oid,'EXECUTE') public_execute,has_function_privilege('sco_runtime',oid,'EXECUTE') runtime_execute FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'internal_supplier_future_demand_framework%' ORDER BY proname`);
+    expect(gateways.rows).not.toHaveLength(0);
+    expect(gateways.rows.every((gateway: any) => gateway.prosecdef && !gateway.public_execute && !gateway.runtime_execute && gateway.proconfig.includes('search_path=pg_catalog, public'))).toBe(true);
+
+    const runtime = new Client({ connectionString: process.env.RUNTIME_DATABASE_URL }); await runtime.connect();
+    try {
+      await runtime.query(`SELECT set_config('app.tenant_id',$1,false),set_config('app.actor_id',$2,false),set_config('app.sco_internal','true',false)`, [dualRoleCompany, dualRoleUser]);
+      for (const tableName of tableNames) await expect(runtime.query(`SELECT * FROM public.${tableName}`)).rejects.toThrow(/permission denied/i);
+      await expect(runtime.query(`SELECT public.internal_supplier_future_demand_framework_get($1,$2)`, [actor, framework.framework_id])).rejects.toThrow(/permission denied/i);
+      await expect(runtime.query(`SELECT public.internal_supplier_future_demand_framework_commercial_terms_get($1,$2)`, [actor, framework.revision_id])).rejects.toThrow(/permission denied/i);
+    } finally { await runtime.end(); }
+
+    expect(await service.getSupplierFutureDemandFramework(deniedActor, framework.framework_id)).toEqual([]);
+    expect(await service.getSupplierFutureDemandFramework(deniedActor, uuid())).toEqual([]);
+    expect(await service.getSupplierFutureDemandFrameworkCommercialTerms(deniedActor, framework.revision_id)).toEqual([]);
+    expect(await service.getSupplierFutureDemandFrameworkBuyingPowerProvenance(deniedActor, framework.revision_id)).toEqual([]);
+  });
 });

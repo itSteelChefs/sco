@@ -7,7 +7,7 @@ const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
 let internal: InternalDatabaseService;
 let sco: string; let actor: string; let lineageActor: string; let partnerA: string; let partnerB: string;
-let unit: string; let product: string; let otherProduct: string; let otherUnit: string;
+let category: string; let unit: string; let product: string; let otherProduct: string; let otherUnit: string;
 let needA: string; let needB: string; let executionA: string; let commitmentLineA: string; let commitmentLineB: string;
 let runKey: string;
 
@@ -61,7 +61,7 @@ describe('Batch 10-A controlled aggregation foundation', () => {
     await owner.query(`INSERT INTO "Company"(id,name,type) VALUES($1,'BP SCO','SCO'),($2,'BP A','PARTNER'),($3,'BP B','PARTNER')`,[sco,partnerA,partnerB]);
     actor=await principal(sco,['buying_power.aggregate','buying_power.rebuild','buying_power.read_summary'],'aggregate');
     lineageActor=await principal(sco,['buying_power.read_lineage'],'lineage');
-    const creator=id(), category=id(), category2=id(); unit=id(); otherUnit=id(); product=id(); otherProduct=id();
+    const creator=id(), category2=id(); category=id(); unit=id(); otherUnit=id(); product=id(); otherProduct=id();
     await owner.query(`INSERT INTO "User"(id,email,"passwordHash") VALUES($1,$2,'x')`,[creator,`${creator}@bp.test`]);
     await owner.query(`INSERT INTO product_categories(id,code,name) VALUES($1,$2,'BP'),($3,$4,'BP2')`,[category,`bp-${category}`,category2,`bp-${category2}`]);
     await owner.query(`INSERT INTO unit_definitions(id,code,name,dimension) VALUES($1,$2,'Each','count'),($3,$4,'Box','count')`,[unit,`bp-${unit}`,otherUnit,`bp-${otherUnit}`]);
@@ -74,6 +74,19 @@ describe('Batch 10-A controlled aggregation foundation', () => {
     await owner.query(`INSERT INTO procurement_executions(id,cycle_id,status,created_by) VALUES($1,$2,'SOURCING_READY',$3)`,[executionA,cycle,creator]);
     await owner.query(`INSERT INTO procurement_execution_items(id,execution_id,company_id,project_id,procurement_need_id,product_identity_id,allocated_quantity,remaining_quantity,unit_id,need_date,idempotency_key,created_by,status) VALUES($1,$2,$3,$4,$5,$6,30,30,$7,current_date,$8,$9,'SOURCING_READY')`,[id(),executionA,partnerA,projectA,needA,product,unit,id(),creator]);
     commitmentLineA=await commitment(partnerA,product,unit,100); commitmentLineB=await commitment(partnerB,product,unit,100);
+    const supplier=id(), partnership=id(), source=id(), rfq=id(), rfqItem=id(), quote=id(), revision=id(), snapshot=id();
+    const executionItem=(await owner.query(`SELECT id FROM procurement_execution_items WHERE execution_id=$1 LIMIT 1`,[executionA])).rows[0].id;
+    const sourceType=(await owner.query(`SELECT id FROM purchase_source_type_definitions LIMIT 1`)).rows[0].id;
+    await owner.query(`INSERT INTO "Company"(id,name,type) VALUES($1,'BP Supplier','SUPPLIER')`,[supplier]);
+    await owner.query(`INSERT INTO company_partnerships(id,company_id,type,status) VALUES($1,$2,'SUPPLIER_PARTNERSHIP','ACTIVE')`,[partnership,supplier]);
+    await owner.query(`INSERT INTO supplier_qualifications(id,company_id,supplier_partnership_id,status,created_by) VALUES($1,$2,$3,'ACTIVE',$4)`,[id(),supplier,partnership,creator]);
+    await owner.query(`INSERT INTO supplier_category_capabilities(id,company_id,supplier_partnership_id,category_id,status) VALUES($1,$2,$3,$4,'ACTIVE')`,[id(),supplier,partnership,category]);
+    await owner.query(`INSERT INTO purchase_sources(id,supplier_company_id,supplier_partnership_id,source_code,source_type_id,status,created_by) VALUES($1,$2,$3,$4,$5,'ACTIVE',$6)`,[source,supplier,partnership,`BP-${source}`,sourceType,creator]);
+    await owner.query(`INSERT INTO rfqs(id,created_by,status) VALUES($1,$2,'EVALUATION')`,[rfq,creator]);
+    await owner.query(`INSERT INTO rfq_items(id,rfq_id,execution_item_id,company_id,project_id,procurement_need_id,product_identity_id,requested_quantity,unit_id) VALUES($1,$2,$3,$4,$5,$6,$7,100,$8)`,[rfqItem,rfq,executionItem,partnerA,projectA,needA,product,unit]);
+    await owner.query(`INSERT INTO supplier_quotes(id,rfq_id,purchase_source_id,supplier_company_id,created_by) VALUES($1,$2,$3,$4,$5)`,[quote,rfq,source,supplier,creator]);
+    await owner.query(`INSERT INTO supplier_quote_revisions(id,supplier_quote_id,revision_number,initiated_by,currency_code,valid_until) VALUES($1,$2,1,$3,'SAR','2099-12-31')`,[revision,quote,creator]);
+    await owner.query(`INSERT INTO approved_purchase_cost_snapshots(id,rfq_item_id,supplier_quote_revision_id,purchase_source_id,supplier_company_id,product_identity_id,approved_quantity,currency_code,unit_purchase_cost,amount_excl_tax,amount_incl_tax,status,approved_by,approved_at,approval_reason,created_by) VALUES($1,$2,$3,$4,$5,$6,100,'SAR',1,100,100,'APPROVED',$7,now(),'fixture',$7)`,[snapshot,rfqItem,revision,source,supplier,product,actor]);
   });
   afterAll(async()=>{ await internal?.onModuleDestroy(); await owner.end(); });
 

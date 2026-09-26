@@ -15,7 +15,11 @@ let productIdentity: string;
 let unit: string;
 
 async function principal(permissions: string[]) {
-  const sco = (await database.query(`SELECT id FROM "Company" WHERE type='SCO' AND status='ACTIVE' LIMIT 1`)).rows[0].id;
+  let sco = (await database.query(`SELECT id FROM "Company" WHERE type='SCO' AND status='ACTIVE' LIMIT 1`)).rows[0]?.id;
+  if (!sco) {
+    sco = uuid();
+    await database.query(`INSERT INTO "Company"(id,name,type) VALUES($1,$2,'SCO')`, [sco, `SFD commercial internal ${sco}`]);
+  }
   const user = uuid(); const membership = uuid(); const role = uuid();
   await database.query(`INSERT INTO "User"(id,email,"passwordHash") VALUES($1,$2,'x')`, [user, `${user}@sfd-commercial.test`]);
   await database.query(`INSERT INTO "CompanyMembership"(id,"userId","companyId",status) VALUES($1,$2,$3,'ACTIVE')`, [membership, user, sco]);
@@ -23,6 +27,27 @@ async function principal(permissions: string[]) {
   await database.query(`INSERT INTO "MembershipRole"(id,company_id,membership_id,role_id) VALUES($1,$2,$3,$4)`, [uuid(), sco, membership, role]);
   for (const permission of permissions) await database.query(`INSERT INTO "RolePermission"(id,company_id,role_id,permission_id) SELECT $1,$2,$3,id FROM "Permission" WHERE code=$4`, [uuid(), sco, role, permission]);
   return user;
+}
+
+async function activeSupplierSource(createdBy: string) {
+  const existing = (await database.query(`SELECT ps.supplier_company_id,ps.supplier_partnership_id,ps.id FROM purchase_sources ps JOIN company_partnerships cp ON cp.id=ps.supplier_partnership_id WHERE ps.status='ACTIVE' AND cp.status='ACTIVE' AND cp.type='SUPPLIER_PARTNERSHIP' LIMIT 1`)).rows[0];
+  if (existing) return existing;
+  const companyId = uuid(); const partnershipId = uuid(); const sourceId = uuid();
+  await database.query(`INSERT INTO "Company"(id,name,type) VALUES($1,$2,'SUPPLIER')`, [companyId, `SFD commercial supplier ${companyId}`]);
+  await database.query(`INSERT INTO company_partnerships(id,company_id,type,status) VALUES($1,$2,'SUPPLIER_PARTNERSHIP','ACTIVE')`, [partnershipId, companyId]);
+  const sourceTypeId = (await database.query(`SELECT id FROM purchase_source_type_definitions WHERE active ORDER BY sort_order,id LIMIT 1`)).rows[0].id;
+  await database.query(`INSERT INTO purchase_sources(id,supplier_company_id,supplier_partnership_id,source_code,source_type_id,status,created_by) VALUES($1,$2,$3,$4,$5,'ACTIVE',$6)`, [sourceId, companyId, partnershipId, `sfd-commercial-${sourceId}`, sourceTypeId, createdBy]);
+  return { supplier_company_id: companyId, supplier_partnership_id: partnershipId, id: sourceId };
+}
+
+async function activeProductScope(createdBy: string) {
+  const existing = (await database.query(`SELECT pi.id product_identity_id,pi.unit_id FROM product_identities pi JOIN unit_definitions u ON u.id=pi.unit_id WHERE pi.status='ACTIVE' AND u.active LIMIT 1`)).rows[0];
+  if (existing) return existing;
+  const categoryId = uuid(); const unitId = uuid(); const productId = uuid();
+  await database.query(`INSERT INTO product_categories(id,code,name) VALUES($1,$2,$3)`, [categoryId, `sfd-commercial-${categoryId}`, `SFD commercial category ${categoryId}`]);
+  await database.query(`INSERT INTO unit_definitions(id,code,name,dimension) VALUES($1,$2,$3,'count')`, [unitId, `sfd-commercial-${unitId}`, `SFD commercial unit ${unitId}`]);
+  await database.query(`INSERT INTO product_identities(id,category_id,unit_id,created_by,status) VALUES($1,$2,$3,$4,'ACTIVE')`, [productId, categoryId, unitId, createdBy]);
+  return { product_identity_id: productId, unit_id: unitId };
 }
 
 function frameworkInput(overrides: Record<string, unknown> = {}) {
@@ -72,9 +97,9 @@ describe('Batch 12-B Supplier Future-Demand Framework commercial terms', () => {
       'supplier_future_demand_framework.commercial.write', 'supplier_future_demand_framework.commercial.read_confidential',
     ]);
     deniedActor = await principal([]);
-    const source = (await database.query(`SELECT ps.supplier_company_id,ps.supplier_partnership_id,ps.id FROM purchase_sources ps JOIN company_partnerships cp ON cp.id=ps.supplier_partnership_id WHERE ps.status='ACTIVE' AND cp.status='ACTIVE' AND cp.type='SUPPLIER_PARTNERSHIP' LIMIT 1`)).rows[0];
+    const source = await activeSupplierSource(actor);
     supplierCompany = source.supplier_company_id; supplierPartnership = source.supplier_partnership_id; purchaseSource = source.id;
-    const scope = (await database.query(`SELECT pi.id product_identity_id,u.id unit_id FROM product_identities pi JOIN unit_definitions u ON u.active WHERE pi.status='ACTIVE' LIMIT 1`)).rows[0];
+    const scope = await activeProductScope(actor);
     productIdentity = scope.product_identity_id; unit = scope.unit_id;
   });
 

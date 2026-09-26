@@ -73,9 +73,30 @@ export class RuntimeDatabaseService implements OnModuleDestroy {
   }
 
   async getPartnerDeliveryProjection(actor: string, companyId: string, commitmentId?: string | null) {
-    return this.withTransaction(async (client) => {
+    return this.withActor(actor, async (client) => {
       await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
       return (await client.query('SELECT * FROM public.partner_delivery_projection_list($1,$2,$3)', [actor, companyId, commitmentId ?? null])).rows;
+    });
+  }
+
+  async confirmPartnerDeliveryReceipt(actor: string, companyId: string, input: { deliveryEventId: string; quantity: number; receivedAt: string; idempotencyKey: string; operationalNote?: string; correlationId?: string }) {
+    return this.withActor(actor, async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query<{ id: string }>('SELECT public.partner_delivery_receipt_confirm($1,$2,$3,$4,$5,$6,$7,$8) AS id', [actor, companyId, input.deliveryEventId, input.quantity, input.receivedAt, input.operationalNote ?? null, input.idempotencyKey, input.correlationId ?? null])).rows[0].id;
+    });
+  }
+
+  async confirmPartnerDeliveryAcceptance(actor: string, companyId: string, input: { deliveryEventId: string; quantity: number; acceptedAt: string; idempotencyKey: string; correlationId?: string }) {
+    return this.withActor(actor, async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query<{ id: string }>('SELECT public.partner_delivery_acceptance_confirm($1,$2,$3,$4,$5,$6,$7) AS id', [actor, companyId, input.deliveryEventId, input.quantity, input.acceptedAt, input.idempotencyKey, input.correlationId ?? null])).rows[0].id;
+    });
+  }
+
+  async recordPartnerDeliveryDiscrepancy(actor: string, companyId: string, input: { deliveryEventId: string; quantity: number; reasonCode: string; idempotencyKey: string; receiptEventId?: string; acceptanceEventId?: string; note?: string; correlationId?: string }) {
+    return this.withActor(actor, async (client) => {
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [companyId]);
+      return (await client.query<{ id: string }>('SELECT public.partner_delivery_discrepancy_record($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS id', [actor, companyId, input.deliveryEventId, input.receiptEventId ?? null, input.acceptanceEventId ?? null, input.quantity, input.reasonCode, input.note ?? null, input.idempotencyKey, input.correlationId ?? null])).rows[0].id;
     });
   }
 

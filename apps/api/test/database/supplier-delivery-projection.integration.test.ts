@@ -231,9 +231,10 @@ describe('Batch 9.6.4-B delivery projections and disclosure boundaries', () => {
       po: (await owner.query(`SELECT status,total_actual_purchase_cost,payment_terms_snapshot FROM supplier_purchase_orders WHERE id=$1`, [poId])).rows[0],
       commitment: (await owner.query(`SELECT total_excl_tax,total_incl_tax FROM commercial_commitments WHERE id=$1`, [commitmentA])).rows[0],
       cost: (await owner.query(`SELECT count(*)::int count FROM approved_purchase_cost_snapshots WHERE id IN (SELECT approved_purchase_cost_snapshot_id FROM procurement_release_lines WHERE id=$1)`, [lineA])).rows[0].count,
-      paymentSchedule: (await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedules WHERE po_id=$1`, [poId])).rows[0].count,
+      paymentScheduleRevisions: (await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedule_revisions WHERE supplier_purchase_order_id=$1`, [poId])).rows[0].count,
+      paymentScheduleItems: (await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedule_items WHERE schedule_revision_id IN (SELECT id FROM supplier_payment_schedule_revisions WHERE supplier_purchase_order_id=$1)`, [poId])).rows[0].count,
       coverage: (await owner.query(`SELECT count(*)::int count FROM supplier_po_coverage_bindings b JOIN supplier_po_release_line_allocations a ON a.id=b.supplier_po_release_line_allocation_id WHERE a.supplier_purchase_order_line_id IN (SELECT id FROM supplier_purchase_order_lines WHERE supplier_purchase_order_id=$1)`, [poId])).rows[0].count,
-      documents: (await owner.query(`SELECT count(*)::int count FROM supplier_commercial_documents WHERE po_id=$1`, [poId])).rows[0].count,
+      commercialDocuments: (await owner.query(`SELECT count(*)::int count FROM supplier_po_commercial_documents WHERE supplier_purchase_order_id=$1`, [poId])).rows[0].count,
     };
     await runtime.getPartnerDeliveryProjection(partnerAActor, partnerA, commitmentA);
     await runtime.getSupplierDeliveryDisclosure(supplierActor, supplier, trancheA);
@@ -243,9 +244,10 @@ describe('Batch 9.6.4-B delivery projections and disclosure boundaries', () => {
       po: (await owner.query(`SELECT status,total_actual_purchase_cost,payment_terms_snapshot FROM supplier_purchase_orders WHERE id=$1`, [poId])).rows[0],
       commitment: (await owner.query(`SELECT total_excl_tax,total_incl_tax FROM commercial_commitments WHERE id=$1`, [commitmentA])).rows[0],
       cost: (await owner.query(`SELECT count(*)::int count FROM approved_purchase_cost_snapshots WHERE id IN (SELECT approved_purchase_cost_snapshot_id FROM procurement_release_lines WHERE id=$1)`, [lineA])).rows[0].count,
-      paymentSchedule: (await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedules WHERE po_id=$1`, [poId])).rows[0].count,
+      paymentScheduleRevisions: (await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedule_revisions WHERE supplier_purchase_order_id=$1`, [poId])).rows[0].count,
+      paymentScheduleItems: (await owner.query(`SELECT count(*)::int count FROM supplier_payment_schedule_items WHERE schedule_revision_id IN (SELECT id FROM supplier_payment_schedule_revisions WHERE supplier_purchase_order_id=$1)`, [poId])).rows[0].count,
       coverage: (await owner.query(`SELECT count(*)::int count FROM supplier_po_coverage_bindings b JOIN supplier_po_release_line_allocations a ON a.id=b.supplier_po_release_line_allocation_id WHERE a.supplier_purchase_order_line_id IN (SELECT id FROM supplier_purchase_order_lines WHERE supplier_purchase_order_id=$1)`, [poId])).rows[0].count,
-      documents: (await owner.query(`SELECT count(*)::int count FROM supplier_commercial_documents WHERE po_id=$1`, [poId])).rows[0].count,
+      commercialDocuments: (await owner.query(`SELECT count(*)::int count FROM supplier_po_commercial_documents WHERE supplier_purchase_order_id=$1`, [poId])).rows[0].count,
     };
     expect(after).toEqual(before);
   });

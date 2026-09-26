@@ -95,9 +95,6 @@ beforeAll(async () => {
       ($8, $6, 'ACTIVE')`,
     [userA, multiUser, suspendedUser, revokedUser, disabledUser, companyA, companyB, internalUser],
   );
-  await owner.query(`INSERT INTO "Permission" (code, description) VALUES
-    ('identity.company.read', 'Read internal company data'),
-    ('partner.portal.read', 'Read partner portal') ON CONFLICT (code) DO NOTHING`);
   await owner.query(`INSERT INTO "Role" (company_id, code, name) VALUES
     ($1, 'partner-user', 'Partner User'), ($1, 'operations', 'Operations')
     ON CONFLICT (company_id, code) DO NOTHING`, [companyA]);
@@ -126,6 +123,18 @@ afterAll(async () => {
 });
 
 describe('Security Gate: request → authentication → membership → tenant → RLS', () => {
+  it('uses the current migration-defined permission codes', async () => {
+    const permissions = await owner.query<{ code: string; description: string }>(
+      `SELECT code, description FROM "Permission" WHERE code IN ($1, $2) ORDER BY code`,
+      ['identity.company.read', 'partner.portal.read'],
+    );
+
+    expect(permissions.rows).toEqual([
+      { code: 'identity.company.read', description: 'Read internal company data' },
+      { code: 'partner.portal.read', description: 'Read partner portal' },
+    ]);
+  });
+
   it('does not create a tenant transaction for an unauthenticated request', async () => {
     const tenantTransactions = app.get(TenantTransactionService);
     const tenantQuery = vi.spyOn(tenantTransactions, 'withTenant');
@@ -278,6 +287,29 @@ describe('Security Gate: request → authentication → membership → tenant �
       WHERE rp.role_id = r.id AND rp.permission_id = p.id AND r.code = 'operations' AND p.code = 'identity.company.read'`);
     const denied = await requestAs(cookie, 'GET', '/api/v1/internal/companies', companyA);
     expect(denied.statusCode).toBe(403);
+  });
+
+  it('allows the Partner portal only through its assigned permission and does not trust a role title', async () => {
+    const partnerCookie = await login('partner-a@sco.test');
+    const allowed = await requestAs(partnerCookie, 'GET', '/api/v1/partner/me', companyA);
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json()).toMatchObject({ companyId: companyA });
+
+    const titleOnlyRole = await owner.query<{ id: string }>(
+      `INSERT INTO "Role"(company_id, code, name) VALUES($1,$2,$3) RETURNING id`,
+      [companyA, 'partner-portal-title-only', 'Partner Portal Reader'],
+    );
+    const multiMembership = await owner.query<{ id: string }>(
+      `SELECT id FROM "CompanyMembership" WHERE "userId"=$1 AND "companyId"=$2`,
+      [multiUser, companyA],
+    );
+    await owner.query(`INSERT INTO "MembershipRole"(company_id,membership_id,role_id) VALUES($1,$2,$3)`, [companyA, multiMembership.rows[0].id, titleOnlyRole.rows[0].id]);
+
+    const titleOnlyCookie = await login('multi@sco.test');
+    const denied = await requestAs(titleOnlyCookie, 'GET', '/api/v1/partner/me', companyA);
+    expect(denied.statusCode).toBe(403);
+    const internal = await requestAs(partnerCookie, 'GET', '/api/v1/internal/companies', companyA);
+    expect(internal.statusCode).toBe(403);
   });
 
   it('records tenant and pre-tenant audit events without storing secret metadata', async () => {

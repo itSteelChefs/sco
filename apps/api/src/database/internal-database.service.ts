@@ -243,6 +243,38 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async getSupplierFutureDemandFramework(actor: string, frameworkId: string) {
     return (await this.pool.query('SELECT * FROM public.internal_supplier_future_demand_framework_get($1,$2)', [actor, frameworkId])).rows;
   }
+  async createSupplierFutureDemandFrameworkCommercialTerm(actor: string, revisionId: string, input: { productIdentityId: string; unitId: string; pricingKind: 'FIXED' | 'TIERED'; currencyCode: string; taxTreatment: string; idempotencyKey: string; fixedUnitPurchasePrice?: number; taxReference?: string; tiers?: Array<{ lowerQuantity: number; upperQuantity?: number; unitPurchasePrice: number }>; correlationId?: string }) {
+    const tiers = input.tiers?.map((tier) => ({
+      lower_quantity: tier.lowerQuantity,
+      ...(tier.upperQuantity === undefined ? {} : { upper_quantity: tier.upperQuantity }),
+      unit_purchase_price: tier.unitPurchasePrice,
+    }));
+    return (await this.pool.query<{ id: string }>(
+      'SELECT public.internal_supplier_future_demand_framework_commercial_term_create($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12) AS id',
+      [actor, revisionId, input.productIdentityId, input.unitId, input.pricingKind, input.fixedUnitPurchasePrice ?? null, input.currencyCode, input.taxTreatment, input.taxReference ?? null, tiers === undefined ? null : JSON.stringify(tiers), input.idempotencyKey, input.correlationId ?? null],
+    )).rows[0].id;
+  }
+  async createSupplierFutureDemandFrameworkCapacityPeriod(actor: string, revisionId: string, input: { productIdentityId: string; unitId: string; periodStart: string; periodEnd: string; indicativeQuantity: number; idempotencyKey: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>(
+      'SELECT public.internal_supplier_future_demand_framework_capacity_period_create($1,$2,$3,$4,$5,$6,$7,$8,$9) AS id',
+      [actor, revisionId, input.productIdentityId, input.unitId, input.periodStart, input.periodEnd, input.indicativeQuantity, input.idempotencyKey, input.correlationId ?? null],
+    )).rows[0].id;
+  }
+  async attachSupplierFutureDemandFrameworkBuyingPowerProvenance(actor: string, revisionId: string, input: { snapshotId: string; snapshotLineId: string; signalClass: 'QUALIFIED' | 'COMMITTED'; idempotencyKey: string; correlationId?: string }) {
+    return (await this.pool.query<{ id: string }>(
+      'SELECT public.internal_supplier_future_demand_framework_buying_power_provenance_attach($1,$2,$3,$4,$5,$6,$7) AS id',
+      [actor, revisionId, input.snapshotId, input.snapshotLineId, input.signalClass, input.idempotencyKey, input.correlationId ?? null],
+    )).rows[0].id;
+  }
+  async getSupplierFutureDemandFrameworkCommercialTerms(actor: string, revisionId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_future_demand_framework_commercial_terms_get($1,$2)', [actor, revisionId])).rows;
+  }
+  async getSupplierFutureDemandFrameworkCapacityPeriods(actor: string, revisionId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_future_demand_framework_capacity_periods_get($1,$2)', [actor, revisionId])).rows;
+  }
+  async getSupplierFutureDemandFrameworkBuyingPowerProvenance(actor: string, revisionId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_future_demand_framework_buying_power_provenance_get($1,$2)', [actor, revisionId])).rows;
+  }
   async approveSupplierPaymentSchedule(actor: string, revisionId: string, reason?: string, correlationId?: string) {
     await this.pool.query('SELECT public.internal_supplier_payment_schedule_approve($1,$2,$3,$4)', [actor, revisionId, reason ?? null, correlationId ?? null]);
   }

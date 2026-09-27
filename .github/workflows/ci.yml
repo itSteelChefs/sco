@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+      - run: corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
       - run: pnpm install --frozen-lockfile
       - name: Verify immutable migration history
         env:
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+      - run: corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm ci:prepare-db
       - run: pnpm --filter @sco/api exec vitest run test/integration/security-gate.integration.test.ts
@@ -135,10 +135,30 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+      - run: corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm ci:prepare-db
       - run: pnpm --filter @sco/api test
+
+  recovery-drill:
+    name: Encrypted backup and isolated recovery drill
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Install recovery tools from signed repositories
+        run: scripts/ci/install-recovery-tools.sh
+      - name: Verify recovery units and failure paths
+        run: pnpm recovery:test
+      - name: Destroy source and restore into fresh infrastructure
+        run: pnpm recovery:drill
 
   containers:
     name: Container build (${{ matrix.image }})

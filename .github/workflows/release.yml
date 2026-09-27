@@ -84,12 +84,18 @@ jobs:
           docker buildx build --file apps/api/Dockerfile --tag "ghcr.io/$namespace/api:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file api.json .
           docker buildx build --file apps/partner-web/Dockerfile --build-arg "RELEASE_SHA=$RELEASE_SHA" --build-arg "NEXT_PUBLIC_SENTRY_DSN=$PARTNER_WEB_SENTRY_DSN" --tag "ghcr.io/$namespace/partner-web:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file partner.json .
           docker buildx build --file apps/operations-web/Dockerfile --build-arg "RELEASE_SHA=$RELEASE_SHA" --build-arg "NEXT_PUBLIC_SENTRY_DSN=$OPERATIONS_WEB_SENTRY_DSN" --tag "ghcr.io/$namespace/operations-web:$RELEASE_SHA" --label "org.opencontainers.image.revision=$RELEASE_SHA" --provenance=true --sbom=true --push --metadata-file operations.json .
+          # shellcheck disable=SC2016
           api_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' api.json)
+          # shellcheck disable=SC2016
           partner_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' partner.json)
+          # shellcheck disable=SC2016
           operations_digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' operations.json)
-          echo "api_image=ghcr.io/$namespace/api@$api_digest" >> "$GITHUB_OUTPUT"
-          echo "partner_image=ghcr.io/$namespace/partner-web@$partner_digest" >> "$GITHUB_OUTPUT"
-          echo "operations_image=ghcr.io/$namespace/operations-web@$operations_digest" >> "$GITHUB_OUTPUT"
+          {
+            echo "api_image=ghcr.io/$namespace/api@$api_digest"
+            echo "partner_image=ghcr.io/$namespace/partner-web@$partner_digest"
+            echo "operations_image=ghcr.io/$namespace/operations-web@$operations_digest"
+          } >> "$GITHUB_OUTPUT"
+          # shellcheck disable=SC2016
           printf '### Release %s\n- API: `%s`\n- Partner: `%s`\n- Operations: `%s`\n' "$RELEASE_SHA" "$api_digest" "$partner_digest" "$operations_digest" >> "$GITHUB_STEP_SUMMARY"
       - if: always()
         run: docker logout ghcr.io >/dev/null 2>&1 || true

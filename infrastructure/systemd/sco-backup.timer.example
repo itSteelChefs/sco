@@ -1,0 +1,11 @@
+[Unit]
+Description=Example SCO backup schedule; activate only after Owner approval
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=sco-backup.service
+
+[Install]
+WantedBy=timers.target

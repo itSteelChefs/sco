@@ -16,12 +16,13 @@ export class MembershipsService {
 
   async requireActiveMembership(userId: string, requestedCompanyId?: string): Promise<MembershipContext> {
     const memberships = await this.database.withActor(userId, async (client) => {
+      const requestedCompanyFilter = requestedCompanyId ? 'AND m."companyId" = $2' : '';
       const result = await client.query<MembershipRow>(
         `SELECT m.id, m."userId", m."companyId", m.status
          FROM "CompanyMembership" m
          JOIN "Company" c ON c.id = m."companyId"
-         WHERE m."userId" = $1 AND c.status = 'ACTIVE'`,
-        [userId],
+         WHERE m."userId" = $1 AND c.status = 'ACTIVE' ${requestedCompanyFilter}`,
+        requestedCompanyId ? [userId, requestedCompanyId] : [userId],
       );
       return result.rows;
     });

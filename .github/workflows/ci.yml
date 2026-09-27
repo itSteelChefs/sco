@@ -38,6 +38,14 @@ jobs:
       - run: pnpm --filter @sco/api exec prisma validate --schema prisma/schema.prisma
       - run: pnpm --filter @sco/api exec tsc --noEmit
       - run: pnpm --recursive typecheck
+      - name: Test rate limiting without database fixtures
+        run: pnpm --filter @sco/api exec vitest run test/integration/rate-limit.integration.test.ts --no-file-parallelism
+      - name: Test PostgreSQL pool limits without database fixtures
+        run: pnpm --filter @sco/api exec vitest run test/integration/database-pool.integration.test.ts --no-file-parallelism
+      - name: Test performance dataset safety boundaries
+        run: node --test apps/api/test/performance/*.test.mjs
+      - name: Validate isolated performance harness
+        run: pnpm performance:validate
       - run: pnpm --filter @sco/partner-web test
       - run: pnpm --filter @sco/operations-web test
       - run: pnpm --filter @sco/api run build

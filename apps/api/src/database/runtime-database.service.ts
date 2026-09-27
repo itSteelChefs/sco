@@ -1,9 +1,15 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
+import { MetricsService } from '../observability/metrics.service.js';
+import { createObservedPool } from './observed-pool.js';
 
 @Injectable()
 export class RuntimeDatabaseService implements OnModuleDestroy {
-  private readonly pool = new Pool({ connectionString: process.env.RUNTIME_DATABASE_URL });
+  private readonly pool: Pool;
+
+  constructor(@Optional() @Inject(MetricsService) metrics?: MetricsService) {
+    this.pool = createObservedPool(process.env.RUNTIME_DATABASE_URL, 'runtime', metrics);
+  }
 
   async onModuleDestroy() {
     await this.pool.end();

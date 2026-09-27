@@ -49,9 +49,16 @@ SCO_S3_BUCKET=environment-specific-private-bucket
 SCO_S3_REGION=environment-specific-value
 SCO_S3_ACCESS_KEY_ID=environment-specific-value
 SCO_S3_SECRET_ACCESS_KEY=environment-specific-value
+SCO_RATE_LIMIT_MAX=owner-approved-application-requests-per-window
+SCO_RATE_LIMIT_WINDOW_MS=owner-approved-application-window
+SCO_RATE_LIMIT_AUTH_MAX=owner-approved-auth-attempts-per-window
+SCO_RATE_LIMIT_AUTH_WINDOW_MS=owner-approved-auth-window
+SCO_RATE_LIMIT_HEALTH_MAX=owner-approved-readiness-probes-per-window
+SCO_RATE_LIMIT_HEALTH_WINDOW_MS=owner-approved-readiness-window
+SCO_RATE_LIMIT_CLIENT_IDENTITY=direct-peer
 ```
 
-Add endpoint, path-style, or session-token settings only when required by the chosen S3-compatible provider. `DEPLOY_RUNTIME_ENV` must not contain the privileged `DATABASE_URL`. `DEPLOY_MIGRATION_ENV` contains only the matching `SCO_DEPLOY_ENVIRONMENT` marker and the privileged `DATABASE_URL` needed by Prisma. `DEPLOY_WEB_ENV` contains the matching environment marker and optional server-side Sentry settings only; it must never contain database, storage, or session credentials. The deployment script enforces these credential boundaries. Never reuse staging credentials in Production.
+The explicit request limits/windows require separately approved numeric values before enforcement can start. `direct-peer` is valid only when the API socket peer is the actual client; if a reverse proxy/NAT masks clients, do not enable rate limiting until the Owner approves and infrastructure enforces a trusted-proxy boundary. In that topology set `SCO_RATE_LIMIT_ENABLED=false` explicitly; this leaves abuse limiting disabled and must be documented/approved operationally. Forwarded headers are not trusted. Add endpoint, path-style, or session-token settings only when required by the chosen S3-compatible provider. `DEPLOY_RUNTIME_ENV` must not contain the privileged `DATABASE_URL`. `DEPLOY_MIGRATION_ENV` contains only the matching `SCO_DEPLOY_ENVIRONMENT` marker and the privileged `DATABASE_URL` needed by Prisma. `DEPLOY_WEB_ENV` contains the matching environment marker and optional server-side Sentry settings only; it must never contain database, storage, or session credentials. The deployment script enforces these credential boundaries. Never reuse staging credentials in Production.
 
 ## Release
 

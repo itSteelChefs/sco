@@ -1,5 +1,7 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
+import { MetricsService } from '../observability/metrics.service.js';
+import { createObservedPool } from './observed-pool.js';
 
 export type PricingAllocationInput = { snapshotId: string; quantity: number; fxRate?: number; asOfDate?: string; fxReason?: string };
 export type PricingLineInput = { lineNumber: number; productIdentityId: string; quantity: number; unitId: string; unitSellingPrice: number; taxTreatmentCode?: string; taxRate?: number; taxAmount?: number; allocations: PricingAllocationInput[] };
@@ -7,7 +9,10 @@ export type DirectDealCostInput = { lineNumber: number; type: string; descriptio
 export type CreatePricingInput = { caseId?: string; partnerCompanyId: string; currency: string; lines: PricingLineInput[]; directCosts?: DirectDealCostInput[]; overhead?: number; overheadReason?: string; correlationId?: string };
 @Injectable()
 export class InternalDatabaseService implements OnModuleDestroy {
-  private readonly pool = new Pool({ connectionString: process.env.SCO_INTERNAL_DATABASE_URL });
+  private readonly pool: Pool;
+  constructor(@Optional() @Inject(MetricsService) metrics?: MetricsService) {
+    this.pool = createObservedPool(process.env.SCO_INTERNAL_DATABASE_URL, 'internal', metrics);
+  }
   async onModuleDestroy() { await this.pool.end(); }
   async ping(): Promise<void> { await this.pool.query('SELECT 1'); }
   poolStats() { return { total: this.pool.totalCount, idle: this.pool.idleCount, waiting: this.pool.waitingCount }; }

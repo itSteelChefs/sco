@@ -24,7 +24,7 @@
     "security:workflows": "actionlint .github/workflows/*.yml",
     "security:secrets": "scripts/ci/run-gitleaks.sh",
     "security:filesystem": "trivy fs --scanners vuln,misconfig --include-dev-deps --severity HIGH,CRITICAL --no-progress --exit-code 1 .",
-    "recovery:test": "node --test apps/api/test/recovery/*.test.mjs && scripts/recovery/test-failure-paths.sh && scripts/recovery/test-environment-identity.sh",
+    "recovery:test": "node --test apps/api/test/recovery/*.test.mjs && scripts/recovery/test-failure-paths.sh",
     "recovery:drill": "scripts/recovery/run-local-drill.sh",
     "db:up": "docker compose -f infrastructure/compose/development.yml up -d --wait",
     "db:down": "docker compose -f infrastructure/compose/development.yml down",

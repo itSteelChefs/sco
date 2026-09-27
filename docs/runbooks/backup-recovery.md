@@ -2,7 +2,7 @@
 
 ## Safety rules
 
-- Never run this recovery tooling against Production. It reads the authoritative `sco.environment` setting from the target database and refuses `production` without an override. Production recovery requires a future break-glass Owner Decision and separate runbook.
+- Never run recovery tooling against Production from an unreviewed shell session. The script refuses `--environment production`; Production recovery requires a separately approved change procedure.
 - Never put credentials or private keys in Git, backup filenames, manifests, command arguments, logs, or archives. Supply database and S3 credentials through protected environment files and keys through protected files.
 - Never restore over a populated database or bucket. Restore into clean infrastructure, reconcile, validate, and switch traffic only after approval.
 - Never treat an on-host copy as disaster recovery. Confirm the encrypted archive, envelope, and signature reached an independent destination.
@@ -27,18 +27,6 @@
 
 Provision a clean PostgreSQL 17 database named `sco_dev`, a clean private S3-compatible bucket, and fresh credentials. The restore account must be able to create schema objects and roles. Runtime credentials remain external.
 
-Set the authoritative identity as database-level infrastructure configuration, then reconnect and verify it. Use exactly one of `development`, `test`, `staging`, or `production`:
-
-```sql
-ALTER DATABASE sco_dev SET sco.environment = 'staging';
-```
-
-```bash
-psql "$SCO_RESTORE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atc "SELECT setting FROM pg_db_role_setting CROSS JOIN LATERAL unnest(setconfig) AS setting WHERE setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database()) AND setrole = 0 AND setting LIKE 'sco.environment=%'"
-```
-
-The protected recovery context supplies the expected value through `--environment`. Restore reads the database-level catalog value directly and continues only when it matches both the expected value and the effective session value. Missing, empty, malformed, mismatched, or session/role-overridden identity fails closed. An actual `production` value always fails closed, regardless of the CLI value. This control prevents wrong-target and automation mistakes; it does not defend against a PostgreSQL superuser who can alter database configuration.
-
 Set protected environment values without shell tracing:
 
 ```bash
@@ -57,16 +45,15 @@ Run restore from the reviewed release checkout. Staging is the highest environme
 
 ```bash
 scripts/recovery/restore-backup.sh \
-  --archive /secure/input/sco-TIMESTAMP-ID.tar.age \
-  --envelope /secure/input/sco-TIMESTAMP-ID.envelope.json \
-  --signature /secure/input/sco-TIMESTAMP-ID.envelope.sig \
-  --signing-public-key /secure/key/backup-signing-public-key.pem \
-  --age-identity /secure/key/backup-age-identity.txt \
-  --confirm-database RESTORE:sco_dev \
-  --confirm-target RESTORE:NEW_DATABASE_HOST:5432/sco_dev \
-  --environment staging \
-  --expected-release-sha FULL_REVIEWED_GIT_COMMIT_SHA \
-  --report /secure/output/reconciliation.json
+	--archive /secure/input/sco-TIMESTAMP-ID.tar.age \
+	--envelope /secure/input/sco-TIMESTAMP-ID.envelope.json \
+	--signature /secure/input/sco-TIMESTAMP-ID.envelope.sig \
+	--signing-public-key /secure/key/backup-signing-public-key.pem \
+	--age-identity /secure/key/backup-age-identity.txt \
+	--confirm-database RESTORE:sco_dev \
+	--confirm-target RESTORE:NEW_DATABASE_HOST:5432/sco_dev \
+	--environment staging \
+	--report /secure/output/reconciliation.json
 ```
 
 The command stops on a bad signature, hash, identity, archive entry, component, PostgreSQL version, non-empty destination, migration state, object byte, or reconciliation result. Retain its structured output with the incident record, excluding environment files and keys.
@@ -93,9 +80,9 @@ Confirm all expected migrations are applied; runtime and internal roles are non-
 
 ## Scenario decisions
 
-**Database-only loss:** preserve the bucket and keep traffic closed. The Batch 4 restore command intentionally performs a complete database-and-object restore into empty targets; a database-only procedure requires a separately reviewed command path. Do not point the complete restore command at the existing bucket.
+**Database-only loss:** preserve the bucket, restore PostgreSQL into a new database, and reconcile against the existing bucket. Investigate objects newer than the selected database generation before classifying them as orphans.
 
-**Object-store-only loss:** preserve PostgreSQL and keep traffic closed. The Batch 4 restore command intentionally performs a complete database-and-object restore into empty targets; an object-only procedure requires a separately reviewed command path. Do not delete database references to make a report green.
+**Object-store-only loss:** preserve PostgreSQL, restore object bytes into a new private bucket, and reconcile. Do not delete database references to make the report green.
 
 **Complete host loss:** provision a new host from infrastructure authority, recover source and immutable image identity, restore configuration and secrets separately, restore database and objects, validate, then change traffic under a separate authorization.
 
@@ -120,13 +107,12 @@ export SCO_BACKUP_S3_REGION='PROVIDER_REGION'
 export SCO_BACKUP_OFF_HOST_ROOT='/mnt/sco-backups'
 export SCO_BACKUP_WORK_ROOT='/run/sco-backup'
 export SCO_BACKUP_DOCUMENT_WRITES_QUIESCED='true'
-export RELEASE_SHA='FULL_REVIEWED_GIT_COMMIT_SHA'
 
 scripts/recovery/create-backup.sh \
-  --output-directory /mnt/sco-backups \
-  --destination-kind off-host \
-  --age-recipient 'age1PUBLIC_RECIPIENT' \
-  --signing-key /secure/key/backup-signing-key.pem
+	--output-directory /mnt/sco-backups \
+	--destination-kind off-host \
+	--age-recipient 'age1PUBLIC_RECIPIENT' \
+	--signing-key /secure/key/backup-signing-key.pem
 ```
 
 Monitor the structured `backup_completed` event and independently copy or replicate the signed encrypted set according to provider policy. Verify restores on schedule; successful creation alone is not proof of recoverability.

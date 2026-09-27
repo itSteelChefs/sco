@@ -6,7 +6,7 @@ import { AppModule } from './app.module.js';
 import { ApiValidationPipe } from './common/http/validation-pipe.js';
 import { StructuredLogger } from './observability/structured-logger.js';
 export async function bootstrap() {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), { logger: new StructuredLogger() });
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ trustProxy: false, bodyLimit: 1_048_576 }), { logger: new StructuredLogger() });
   app.enableShutdownHooks();
   app.setGlobalPrefix('');
   app.useGlobalPipes(new ApiValidationPipe());

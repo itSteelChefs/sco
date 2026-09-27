@@ -4,6 +4,7 @@ import { runtimeIdentity } from './telemetry.js';
 
 type StatusClass = '2xx' | '3xx' | '4xx' | '5xx';
 type DatabasePool = 'runtime' | 'internal';
+type DatabasePoolFailureKind = 'acquire' | 'idle_client';
 
 @Injectable()
 export class MetricsService {
@@ -38,16 +39,33 @@ export class MetricsService {
     labelNames: ['pool', 'state'] as const,
     registers: [this.registry],
   });
+  private readonly databasePoolFailures = new Counter({
+    name: 'sco_database_pool_failures_total',
+    help: 'PostgreSQL pool acquisition and idle-client failures',
+    labelNames: ['pool', 'kind'] as const,
+    registers: [this.registry],
+  });
   private readonly storageFailures = new Counter({
     name: 'sco_storage_operation_failures_total',
     help: 'Private object storage operation failures',
     labelNames: ['operation'] as const,
     registers: [this.registry],
   });
+  private readonly rateLimitedRequests = new Counter({
+    name: 'sco_http_rate_limited_total',
+    help: 'Requests rejected by the process-local rate limiter',
+    labelNames: ['method', 'operation'] as const,
+    registers: [this.registry],
+  });
 
   constructor() {
     const identity = runtimeIdentity();
     this.registry.setDefaultLabels({ service: identity.service, environment: identity.environment });
+    for (const pool of ['runtime', 'internal'] as const) {
+      for (const kind of ['acquire', 'idle_client'] as const) {
+        this.databasePoolFailures.inc({ pool, kind }, 0);
+      }
+    }
     new Gauge({
       name: 'sco_build_info',
       help: 'Current immutable application release identity',
@@ -79,8 +97,19 @@ export class MetricsService {
     this.databasePoolConnections.set({ pool, state: 'waiting' }, stats.waiting);
   }
 
+  databasePoolFailure(pool: DatabasePool, kind: DatabasePoolFailureKind): void {
+    this.databasePoolFailures.inc({ pool, kind });
+  }
+
   storageFailed(operation: 'read' | 'write'): void {
     this.storageFailures.inc({ operation });
+  }
+
+  rateLimited(method: string, policy: 'application' | 'authentication' | 'health', seconds: number): void {
+    const labels = { method, operation: policy, status_class: '4xx' as const };
+    this.requests.inc(labels);
+    this.duration.observe(labels, seconds);
+    this.rateLimitedRequests.inc({ method, operation: policy });
   }
 
   contentType(): string {

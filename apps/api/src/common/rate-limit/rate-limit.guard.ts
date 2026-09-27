@@ -21,7 +21,7 @@ export class RateLimitGuard implements CanActivate {
     const policy = operation === '/api/v1/auth/login' ? 'authentication'
       : operation === '/health/ready' ? 'health'
         : 'application';
-    const result = this.limiter.consume(policy, request.ip);
+    const result = this.limiter.consume(policy, this.limiter.clientIdentity(request));
     if (result.allowed) return true;
     const response = context.switchToHttp().getResponse<FastifyReply>();
     response.header('retry-after', String(result.retryAfterSeconds));

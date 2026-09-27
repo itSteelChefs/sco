@@ -1,0 +1,93 @@
+# SCO Stage 004 Batch 6-B staging edge contract, version 1.
+# Render __SCO_TLS_CERTIFICATE__ and __SCO_TLS_CERTIFICATE_KEY__ to host-local,
+# root-readable paths before nginx -t. Batch 6-C supplies those paths and the
+# required /etc/nginx/sco/operations-management-access.conf allow/deny policy.
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_certificate __SCO_TLS_CERTIFICATE__;
+    ssl_certificate_key __SCO_TLS_CERTIFICATE_KEY__;
+    return 444;
+}
+
+server {
+    listen 443 ssl;
+    server_name staging.sco.sa;
+    ssl_certificate __SCO_TLS_CERTIFICATE__;
+    ssl_certificate_key __SCO_TLS_CERTIFICATE_KEY__;
+    client_max_body_size 1m;
+    server_tokens off;
+
+    location ^~ /internal/ { return 404; }
+    location ^~ /health/ { return 404; }
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:3101;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP "";
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3102;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP "";
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name operations.staging.sco.sa;
+    ssl_certificate __SCO_TLS_CERTIFICATE__;
+    ssl_certificate_key __SCO_TLS_CERTIFICATE_KEY__;
+    client_max_body_size 1m;
+    server_tokens off;
+    include /etc/nginx/sco/operations-management-access.conf;
+
+    location ^~ /internal/ { return 404; }
+    location ^~ /health/ { return 404; }
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:3101;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP "";
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3103;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP "";
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+}

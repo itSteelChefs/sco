@@ -41,6 +41,8 @@ Browser telemetry remains disabled unless the public repository variables `PARTN
 
 The metrics endpoint is `GET /internal/metrics`. It requires `Authorization: Bearer <SCO_METRICS_TOKEN>` and returns `404` when disabled or unauthorized. Keep it behind a private reverse-proxy route or monitoring network allowlist. Do not expose it through the public business ingress.
 
+The Batch 6-B Staging template explicitly returns `404` for `/internal/` and `/health/` on both public hosts. Metrics scraping and liveness/readiness checks therefore use loopback or the private management plane, never `staging.sco.sa` or `operations.staging.sco.sa`. The public Nginx contract does not proxy PostgreSQL, Docker, or any host socket.
+
 A future Prometheus-compatible collector may scrape this endpoint. Configure short timeouts and tolerate replica restarts. The API must remain healthy if scraping stops.
 
 ## Log Collection

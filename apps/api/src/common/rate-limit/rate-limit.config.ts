@@ -3,12 +3,16 @@ export type RateLimitPolicy = {
   windowMilliseconds: number;
 };
 
+import { proxyTrustConfig } from './proxy-trust.config.js';
+
 export type RateLimitConfig = {
   enabled: boolean;
   application: RateLimitPolicy;
   authentication: RateLimitPolicy;
   health: RateLimitPolicy;
   maximumClients: number;
+  clientIdentity: 'direct-peer' | 'trusted-proxy';
+  trustedProxyPeers: readonly string[];
 };
 
 function positiveInteger(value: string | undefined, name: string, fallback?: number): number {
@@ -23,9 +27,7 @@ export function rateLimitConfig(environment: NodeJS.ProcessEnv = process.env): R
   const deployment = environment.SCO_DEPLOY_ENVIRONMENT ?? environment.NODE_ENV ?? 'development';
   const requiresExplicitConfiguration = deployment === 'staging' || deployment === 'production';
   const enabled = environment.SCO_RATE_LIMIT_ENABLED !== 'false';
-  if (environment.SCO_TRUST_PROXY && environment.SCO_TRUST_PROXY !== 'false') {
-    throw new Error('SCO_TRUST_PROXY is not supported without an approved proxy trust boundary');
-  }
+  const proxyTrust = proxyTrustConfig(environment);
   const required = [
     'SCO_RATE_LIMIT_MAX',
     'SCO_RATE_LIMIT_WINDOW_MS',
@@ -37,11 +39,15 @@ export function rateLimitConfig(environment: NodeJS.ProcessEnv = process.env): R
   if (requiresExplicitConfiguration && enabled && required.some((name) => !environment[name])) {
     throw new Error(`${required.join(', ')} are required for staging and production`);
   }
-  if (requiresExplicitConfiguration && enabled && environment.SCO_RATE_LIMIT_CLIENT_IDENTITY !== 'direct-peer') {
-    throw new Error('SCO_RATE_LIMIT_CLIENT_IDENTITY=direct-peer is required until a trusted proxy boundary is approved');
+  const clientIdentity = environment.SCO_RATE_LIMIT_CLIENT_IDENTITY ?? 'direct-peer';
+  if (clientIdentity !== 'direct-peer' && clientIdentity !== 'trusted-proxy') {
+    throw new Error('SCO_RATE_LIMIT_CLIENT_IDENTITY must be direct-peer or trusted-proxy');
   }
-  if (environment.SCO_RATE_LIMIT_CLIENT_IDENTITY && environment.SCO_RATE_LIMIT_CLIENT_IDENTITY !== 'direct-peer') {
-    throw new Error('Only direct-peer client identity is supported');
+  if (proxyTrust.enabled !== (clientIdentity === 'trusted-proxy')) {
+    throw new Error('SCO_RATE_LIMIT_CLIENT_IDENTITY must match the proxy trust configuration');
+  }
+  if (requiresExplicitConfiguration && enabled && !environment.SCO_RATE_LIMIT_CLIENT_IDENTITY) {
+    throw new Error('SCO_RATE_LIMIT_CLIENT_IDENTITY is required for staging and production');
   }
   const maximumClients = positiveInteger(environment.SCO_RATE_LIMIT_MAX_CLIENTS, 'SCO_RATE_LIMIT_MAX_CLIENTS', 10_000);
   if (maximumClients > 100_000) throw new Error('SCO_RATE_LIMIT_MAX_CLIENTS must not exceed 100000');
@@ -60,5 +66,7 @@ export function rateLimitConfig(environment: NodeJS.ProcessEnv = process.env): R
       windowMilliseconds: positiveInteger(environment.SCO_RATE_LIMIT_HEALTH_WINDOW_MS, 'SCO_RATE_LIMIT_HEALTH_WINDOW_MS', 60_000),
     },
     maximumClients,
+    clientIdentity,
+    trustedProxyPeers: proxyTrust.trustedPeers,
   };
 }

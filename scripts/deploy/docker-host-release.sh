@@ -19,12 +19,13 @@ partner_port=${10}
 operations_port=${11}
 
 [[ $deploy_path =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo 'Invalid deployment path' >&2; exit 64; }
-[[ $deployment_environment == staging || $deployment_environment == production ]] || { echo 'Invalid deployment environment' >&2; exit 64; }
+[[ $deployment_environment == staging ]] || { echo 'Only staging deployment is authorized' >&2; exit 64; }
 [[ $release_sha =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA' >&2; exit 64; }
 [[ $network =~ ^[A-Za-z0-9_.-]+$ ]] || { echo 'Invalid Docker network' >&2; exit 64; }
 [[ $bind_address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo 'Bind address must be IPv4' >&2; exit 64; }
 IFS=. read -r -a bind_octets <<<"$bind_address"
 for octet in "${bind_octets[@]}"; do ((10#$octet <= 255)) || { echo 'Invalid IPv4 bind address' >&2; exit 64; }; done
+[[ $bind_address == '127.0.0.1' ]] || { echo 'Staging services must bind to loopback' >&2; exit 64; }
 for port in "$api_port" "$partner_port" "$operations_port"; do
   [[ $port =~ ^[0-9]{1,5}$ ]] && ((port >= 1 && port <= 65535)) || { echo 'Invalid port' >&2; exit 64; }
 done

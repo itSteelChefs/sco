@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { isIP } from 'node:net';
+import type { FastifyRequest } from 'fastify';
 import { rateLimitConfig, type RateLimitConfig, type RateLimitPolicy } from './rate-limit.config.js';
 
 export type RateLimitPolicyName = 'application' | 'authentication' | 'health';
@@ -11,6 +13,14 @@ export class RateLimitService {
 
   constructor() {
     this.config = rateLimitConfig();
+  }
+
+  clientIdentity(request: FastifyRequest): string {
+    const peer = request.ip;
+    if (this.config.clientIdentity !== 'trusted-proxy' || !this.config.trustedProxyPeers.includes(peer)) return peer;
+    const forwardedFor = request.headers['x-forwarded-for'];
+    if (typeof forwardedFor !== 'string' || forwardedFor.includes(',') || isIP(forwardedFor) === 0) return peer;
+    return forwardedFor;
   }
 
   consume(policyName: RateLimitPolicyName, clientIdentity: string, now = Date.now()): { allowed: boolean; retryAfterSeconds: number } {

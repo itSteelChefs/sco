@@ -86,6 +86,8 @@ Confirm all expected migrations are applied; runtime and internal roles are non-
 
 **Complete host loss:** provision a new host from infrastructure authority, recover source and immutable image identity, restore configuration and secrets separately, restore database and objects, validate, then change traffic under a separate authorization.
 
+For the dedicated Staging host, keep ingress closed until loopback-only application ports, the Batch 6-B Nginx edge contract, the Operations management-plane allow/deny policy, private database/object-storage reachability, and the immutable release digest are all verified. Staging recovery must use only Staging database, bucket, credentials, and backup generations; never restore Production data into Staging.
+
 **Failed deployment:** keep data unchanged when possible and roll back to the previous immutable image digest. Restore data only if evidence shows data damage.
 
 **Failed migration:** stop writes, retain migration output and current state, and follow the migration-specific rollback/forward-fix decision. Never reapply a backup over a live database as an automatic rollback.

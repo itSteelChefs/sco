@@ -15,7 +15,7 @@ operations_image=$4
 required=(DEPLOY_ENVIRONMENT DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS DEPLOY_PATH DEPLOY_RUNTIME_ENV DEPLOY_MIGRATION_ENV DEPLOY_WEB_ENV GHCR_USERNAME GHCR_TOKEN)
 for name in "${required[@]}"; do [[ -n ${!name:-} ]] || { echo "$name is required" >&2; exit 78; }; done
 
-[[ $DEPLOY_ENVIRONMENT == staging || $DEPLOY_ENVIRONMENT == production ]] || { echo 'Invalid deployment environment' >&2; exit 64; }
+[[ $DEPLOY_ENVIRONMENT == staging ]] || { echo 'Only staging deployment is authorized' >&2; exit 64; }
 grep -qx "NODE_ENV=$DEPLOY_ENVIRONMENT" <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Runtime environment does not match deployment environment' >&2; exit 78; }
 grep -qx "SCO_DEPLOY_ENVIRONMENT=$DEPLOY_ENVIRONMENT" <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Runtime environment marker does not match deployment environment' >&2; exit 78; }
 grep -qx "SCO_DEPLOY_ENVIRONMENT=$DEPLOY_ENVIRONMENT" <<<"$DEPLOY_MIGRATION_ENV" || { echo 'Migration environment marker does not match deployment environment' >&2; exit 78; }
@@ -24,6 +24,17 @@ grep -Eq '^DATABASE_URL=.+$' <<<"$DEPLOY_MIGRATION_ENV" || { echo 'Migration dat
 if grep -Eq '^DATABASE_URL=' <<<"$DEPLOY_RUNTIME_ENV"; then echo 'Runtime environment must not contain the migration database URL' >&2; exit 78; fi
 if grep -Eq '^(DATABASE_URL|RUNTIME_DATABASE_URL|SCO_INTERNAL_DATABASE_URL|SESSION_SECRET|SCO_S3_ACCESS_KEY_ID|SCO_S3_SECRET_ACCESS_KEY|SCO_S3_SESSION_TOKEN)=' <<<"$DEPLOY_WEB_ENV"; then echo 'Web environment contains an API-only credential' >&2; exit 78; fi
 grep -qx 'SCO_DOCUMENT_STORAGE=s3' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Shared S3-compatible storage is required' >&2; exit 78; }
+grep -qx 'SCO_TRUST_PROXY=trusted-peers' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging requires trusted proxy mode' >&2; exit 78; }
+grep -qx 'SCO_TRUSTED_PROXY_PEERS=127.0.0.1' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging requires the loopback Nginx proxy peer' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_CLIENT_IDENTITY=trusted-proxy' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging requires trusted-proxy client identity' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_MAX=120' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging application rate limit must be 120' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_WINDOW_MS=60000' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging application rate-limit window must be 60000' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_AUTH_MAX=20' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging authentication rate limit must be 20' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_AUTH_WINDOW_MS=60000' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging authentication rate-limit window must be 60000' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_HEALTH_MAX=120' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging readiness rate limit must be 120' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_HEALTH_WINDOW_MS=60000' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging readiness rate-limit window must be 60000' >&2; exit 78; }
+grep -qx 'SCO_RATE_LIMIT_MAX_CLIENTS=10000' <<<"$DEPLOY_RUNTIME_ENV" || { echo 'Staging client bucket limit must be 10000' >&2; exit 78; }
+[[ ${DEPLOY_BIND_ADDRESS:-127.0.0.1} == '127.0.0.1' ]] || { echo 'Staging services must bind to loopback' >&2; exit 78; }
 [[ $DEPLOY_HOST =~ ^[A-Za-z0-9._:-]+$ && $DEPLOY_USER =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Invalid SSH target' >&2; exit 64; }
 [[ $GHCR_USERNAME =~ ^[A-Za-z0-9-]+$ ]] || { echo 'Invalid GHCR username' >&2; exit 64; }
 [[ ${DEPLOY_PORT:-22} =~ ^[0-9]{1,5}$ ]] || { echo 'Invalid SSH port' >&2; exit 64; }

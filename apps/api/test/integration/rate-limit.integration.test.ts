@@ -116,11 +116,43 @@ describe('Stage 004 process-local rate limiting', () => {
 
   it('requires explicit deployment limits and refuses proxy trust', () => {
     expect(() => rateLimitConfig({ NODE_ENV: 'production' })).toThrow(/required for staging and production/);
-    expect(() => rateLimitConfig({ NODE_ENV: 'test', SCO_TRUST_PROXY: 'true' })).toThrow(/not supported/);
+    expect(() => rateLimitConfig({ NODE_ENV: 'test', SCO_TRUST_PROXY: 'true' })).toThrow(/false or trusted-peers/);
+    expect(() => rateLimitConfig({ NODE_ENV: 'test', SCO_TRUST_PROXY: 'trusted-peers' })).toThrow(/TRUSTED_PROXY_PEERS is required/);
+    expect(() => rateLimitConfig({ NODE_ENV: 'test', SCO_TRUST_PROXY: 'trusted-peers', SCO_TRUSTED_PROXY_PEERS: '127.0.0.1, invalid' })).toThrow(/comma-separated list/);
     expect(rateLimitConfig({ SCO_DEPLOY_ENVIRONMENT: 'production', SCO_RATE_LIMIT_ENABLED: 'false' }).enabled).toBe(false);
     const deploymentLimits = { SCO_DEPLOY_ENVIRONMENT: 'staging', SCO_RATE_LIMIT_MAX: '120', SCO_RATE_LIMIT_WINDOW_MS: '60000', SCO_RATE_LIMIT_AUTH_MAX: '20', SCO_RATE_LIMIT_AUTH_WINDOW_MS: '60000', SCO_RATE_LIMIT_HEALTH_MAX: '120', SCO_RATE_LIMIT_HEALTH_WINDOW_MS: '60000' };
-    expect(() => rateLimitConfig(deploymentLimits)).toThrow(/CLIENT_IDENTITY=direct-peer/);
+    expect(() => rateLimitConfig(deploymentLimits)).toThrow(/CLIENT_IDENTITY is required/);
     expect(rateLimitConfig({ ...deploymentLimits, SCO_RATE_LIMIT_CLIENT_IDENTITY: 'direct-peer' }).enabled).toBe(true);
+    expect(rateLimitConfig({ ...deploymentLimits, SCO_RATE_LIMIT_CLIENT_IDENTITY: 'trusted-proxy', SCO_TRUST_PROXY: 'trusted-peers', SCO_TRUSTED_PROXY_PEERS: '127.0.0.1' }).trustedProxyPeers).toEqual(['127.0.0.1']);
+  });
+
+  it('uses one forwarded client IP only from a configured proxy peer', () => {
+    const originalTrust = process.env.SCO_TRUST_PROXY;
+    const originalPeers = process.env.SCO_TRUSTED_PROXY_PEERS;
+    const originalIdentity = process.env.SCO_RATE_LIMIT_CLIENT_IDENTITY;
+    process.env.SCO_TRUST_PROXY = 'trusted-peers';
+    process.env.SCO_TRUSTED_PROXY_PEERS = '127.0.0.1';
+    process.env.SCO_RATE_LIMIT_CLIENT_IDENTITY = 'trusted-proxy';
+    try {
+      const limiter = new RateLimitService();
+      const trustedRequest = { ip: '127.0.0.1', headers: { 'x-forwarded-for': '198.51.100.10' } } as never;
+      const spoofedChain = { ip: '127.0.0.1', headers: { 'x-forwarded-for': '198.51.100.10, 203.0.113.4', 'x-real-ip': '198.51.100.99', forwarded: 'for=198.51.100.99' } } as never;
+      const untrustedRequest = { ip: '192.0.2.10', headers: { 'x-forwarded-for': '198.51.100.10', 'x-real-ip': '198.51.100.99', forwarded: 'for=198.51.100.99' } } as never;
+      expect(limiter.clientIdentity(trustedRequest)).toBe('198.51.100.10');
+      expect(limiter.clientIdentity(spoofedChain)).toBe('127.0.0.1');
+      expect(limiter.clientIdentity(untrustedRequest)).toBe('192.0.2.10');
+      expect(limiter.consume('application', limiter.clientIdentity(trustedRequest), 10_000).allowed).toBe(true);
+      expect(limiter.consume('application', '198.51.100.11', 10_000).allowed).toBe(true);
+      expect(limiter.consume('application', limiter.clientIdentity(trustedRequest), 10_001).allowed).toBe(true);
+      expect(limiter.consume('application', limiter.clientIdentity(trustedRequest), 10_002).allowed).toBe(false);
+    } finally {
+      if (originalTrust === undefined) delete process.env.SCO_TRUST_PROXY;
+      else process.env.SCO_TRUST_PROXY = originalTrust;
+      if (originalPeers === undefined) delete process.env.SCO_TRUSTED_PROXY_PEERS;
+      else process.env.SCO_TRUSTED_PROXY_PEERS = originalPeers;
+      if (originalIdentity === undefined) delete process.env.SCO_RATE_LIMIT_CLIENT_IDENTITY;
+      else process.env.SCO_RATE_LIMIT_CLIENT_IDENTITY = originalIdentity;
+    }
   });
 
   it('keeps counters local to one API process', () => {

@@ -20,6 +20,7 @@
   "scripts": {
     "ci:migrations": "node scripts/ci/check-migrations.mjs",
     "ci:secrets": "node scripts/ci/check-sensitive-files.mjs",
+    "ci:staging-edge": "scripts/ci/validate-staging-edge-contract.sh",
     "ci:prepare-db": "node scripts/ci/prepare-test-database.mjs",
     "security:workflows": "actionlint .github/workflows/*.yml",
     "security:secrets": "scripts/ci/run-gitleaks.sh",

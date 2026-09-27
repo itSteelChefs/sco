@@ -1,6 +1,6 @@
 # SCO Platform
 
-Stage 002 Foundation Core for `sco.sa`. This repository is not deployed to production.
+SCO platform for `sco.sa`. Stage 004 Batch 6-B defines a Staging Host & Edge Contract; Production deployment remains disabled.
 
 Copy `.env.example` to `.env` or run `node scripts/create-development-env.mjs --force`, then run `corepack pnpm install --ignore-scripts`.
 
@@ -22,6 +22,8 @@ Production runtime and delivery guidance:
 - `docs/architecture/stage-004-batch-2-ci-cd-foundation.md`
 - `docs/architecture/stage-004-batch-3-observability-foundation.md`
 - `docs/architecture/stage-004-batch-4-recovery-foundation.md`
+- `docs/architecture/stage-004-batch-5-performance.md`
+- `docs/architecture/stage-004-batch-6-host-edge-contract.md`
 - `docs/runbooks/release.md`
 - `docs/runbooks/observability.md`
 - `docs/runbooks/backup-recovery.md`

@@ -6,11 +6,12 @@ import test from 'node:test';
 import { exportObjectStore, reconciliationIssues, restoreObjectStore } from '../../scripts/recovery/object-store.mjs';
 
 class MemoryS3 {
-  constructor(objects = new Map(), versioningStatus = 'Enabled') { this.objects = objects; this.versioningStatus = versioningStatus; }
+  constructor(objects = new Map(), versioningStatus = 'Enabled', historicalVersions = []) { this.objects = objects; this.versioningStatus = versioningStatus; this.historicalVersions = historicalVersions; }
   async send(command) {
     const name = command.constructor.name;
     if (name === 'GetBucketVersioningCommand') return { Status: this.versioningStatus };
     if (name === 'ListObjectsV2Command') return { IsTruncated: false, Contents: [...this.objects].map(([Key, Body]) => ({ Key, Size: Body.length })) };
+    if (name === 'ListObjectVersionsCommand') return { IsTruncated: false, Versions: this.historicalVersions };
     if (name === 'GetObjectCommand') {
       const body = this.objects.get(command.input.Key);
       if (!body) throw new Error('NoSuchKey');
@@ -43,6 +44,19 @@ test('refuses to restore into a non-empty bucket', async () => {
     await exportObjectStore({ client: source, bucket: 'source', root, backupId: 'sco-20260926T200000Z-012345abcdef', createdAt: '2026-09-26T20:00:00Z' });
     const destination = new MemoryS3(new Map([['existing', Buffer.from('unsafe')]]));
     await assert.rejects(restoreObjectStore({ client: destination, bucket: 'destination', root, expectedBackupId: 'sco-20260926T200000Z-012345abcdef' }), /RESTORE_BUCKET_NOT_EMPTY/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('refuses to restore into a bucket with hidden object history', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sco-object-recovery-'));
+  await mkdir(join(root, 'objects', 'blobs'), { recursive: true });
+  try {
+    const source = new MemoryS3(new Map([['tenant/one', Buffer.from('one')]]));
+    await exportObjectStore({ client: source, bucket: 'source', root, backupId: 'sco-20260926T200000Z-012345abcdef', createdAt: '2026-09-26T20:00:00Z' });
+    const destination = new MemoryS3(new Map(), 'Enabled', [{ Key: 'deleted-private-object', VersionId: 'old' }]);
+    await assert.rejects(restoreObjectStore({ client: destination, bucket: 'destination', root, expectedBackupId: 'sco-20260926T200000Z-012345abcdef' }), /RESTORE_BUCKET_HAS_OBJECT_HISTORY/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

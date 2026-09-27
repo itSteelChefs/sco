@@ -7,6 +7,7 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
+  ListObjectVersionsCommand,
   PutBucketVersioningCommand,
   PutObjectCommand,
   S3Client,
@@ -72,6 +73,19 @@ export async function listCurrentObjects(client, bucket) {
   return objects.sort((left, right) => left.key.localeCompare(right.key));
 }
 
+async function hasObjectHistory(client, bucket) {
+  let keyMarker;
+  let versionIdMarker;
+  do {
+    const result = await client.send(new ListObjectVersionsCommand({ Bucket: bucket, KeyMarker: keyMarker, VersionIdMarker: versionIdMarker }));
+    if ((result.Versions?.length ?? 0) > 0 || (result.DeleteMarkers?.length ?? 0) > 0) return true;
+    keyMarker = result.IsTruncated ? result.NextKeyMarker : undefined;
+    versionIdMarker = result.IsTruncated ? result.NextVersionIdMarker : undefined;
+    if (result.IsTruncated && !keyMarker) throw new Error('INVALID_OBJECT_VERSION_PAGINATION');
+  } while (keyMarker);
+  return false;
+}
+
 export async function exportObjectStore({ client, bucket, root, backupId, createdAt }) {
   const versioning = await client.send(new GetBucketVersioningCommand({ Bucket: bucket }));
   const listed = await listCurrentObjects(client, bucket);
@@ -111,6 +125,7 @@ export async function exportObjectStore({ client, bucket, root, backupId, create
 export async function restoreObjectStore({ client, bucket, root, expectedBackupId }) {
   const existing = await listCurrentObjects(client, bucket);
   if (existing.length !== 0) throw new Error('RESTORE_BUCKET_NOT_EMPTY');
+  if (await hasObjectHistory(client, bucket)) throw new Error('RESTORE_BUCKET_HAS_OBJECT_HISTORY');
   const inventory = validateInventory(await readJson(pathWithin(root, 'objects/inventory.json')), expectedBackupId);
   if (inventory.versioningStatus === 'Enabled') {
     const destinationVersioning = await client.send(new GetBucketVersioningCommand({ Bucket: bucket }));

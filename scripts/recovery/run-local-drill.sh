@@ -117,6 +117,7 @@ docker network create "$network" >/dev/null
 docker volume create "$source_database_volume" >/dev/null
 docker volume create "$source_storage_volume" >/dev/null
 start_database "$source_database" "$source_database_volume"
+PGPASSWORD="$owner_password" "$PSQL" -h 127.0.0.1 -p "$postgres_port" -U sco_restore_owner -d "$database_name" -v ON_ERROR_STOP=1 -c "ALTER DATABASE \"$database_name\" SET sco.environment = 'test'" >/dev/null
 start_storage "$source_storage" "$source_storage_volume"
 node apps/api/scripts/recovery/object-store.mjs ensure-bucket --prefix SCO_BACKUP_S3 --enable-versioning true
 corepack pnpm --filter @sco/api exec prisma migrate deploy --schema prisma/schema.prisma
@@ -158,12 +159,14 @@ log_recovery info recovery_drill_source_destroyed --arg database_container "$sou
 docker volume create "$target_database_volume" >/dev/null
 docker volume create "$target_storage_volume" >/dev/null
 start_database "$target_database" "$target_database_volume"
+PGPASSWORD="$owner_password" "$PSQL" -h 127.0.0.1 -p "$postgres_port" -U sco_restore_owner -d "$database_name" -v ON_ERROR_STOP=1 -c "ALTER DATABASE \"$database_name\" SET sco.environment = 'test'" >/dev/null
 start_storage "$target_storage" "$target_storage_volume"
 node apps/api/scripts/recovery/object-store.mjs ensure-bucket --prefix SCO_RESTORE_S3 --enable-versioning true
 restore_start="$(date +%s%3N)"
-SCO_RESTORE_WORK_ROOT=/dev/shm scripts/recovery/restore-backup.sh --archive "$archive" --envelope "$envelope" --signature "$signature" --signing-public-key "$work_directory/signing-public-key.pem" --age-identity "$work_directory/age-identity.txt" --confirm-database "RESTORE:$database_name" --confirm-target "RESTORE:127.0.0.1:$postgres_port/$database_name" --environment local-drill --report "$work_directory/reconciliation.json" | tee "$work_directory/restore.log"
+release_sha="$(git rev-parse HEAD)"
+SCO_RESTORE_WORK_ROOT=/dev/shm scripts/recovery/restore-backup.sh --archive "$archive" --envelope "$envelope" --signature "$signature" --signing-public-key "$work_directory/signing-public-key.pem" --age-identity "$work_directory/age-identity.txt" --confirm-database "RESTORE:$database_name" --confirm-target "RESTORE:127.0.0.1:$postgres_port/$database_name" --environment test --expected-release-sha "$release_sha" --report "$work_directory/reconciliation.json" | tee "$work_directory/restore.log"
 restore_duration="$(( $(date +%s%3N) - restore_start ))"
-if second_restore_output="$(SCO_RESTORE_WORK_ROOT=/dev/shm scripts/recovery/restore-backup.sh --archive "$archive" --envelope "$envelope" --signature "$signature" --signing-public-key "$work_directory/signing-public-key.pem" --age-identity "$work_directory/age-identity.txt" --confirm-database "RESTORE:$database_name" --confirm-target "RESTORE:127.0.0.1:$postgres_port/$database_name" --environment local-drill --report "$work_directory/second-reconciliation.json" 2>&1)"; then
+if second_restore_output="$(SCO_RESTORE_WORK_ROOT=/dev/shm scripts/recovery/restore-backup.sh --archive "$archive" --envelope "$envelope" --signature "$signature" --signing-public-key "$work_directory/signing-public-key.pem" --age-identity "$work_directory/age-identity.txt" --confirm-database "RESTORE:$database_name" --confirm-target "RESTORE:127.0.0.1:$postgres_port/$database_name" --environment test --expected-release-sha "$release_sha" --report "$work_directory/second-reconciliation.json" 2>&1)"; then
   fail_recovery 'NON_EMPTY_RESTORE_WAS_NOT_REFUSED'
 fi
 [[ "$second_restore_output" == *'RESTORE_DATABASE_NOT_EMPTY'* ]] || fail_recovery 'NON_EMPTY_RESTORE_FAILED_UNSAFELY'

@@ -67,8 +67,31 @@ assert_postgres_17() {
   local server_version
   server_version="$($PSQL -X -v ON_ERROR_STOP=1 -Atc 'SHOW server_version')"
   [[ "${server_version%%.*}" == '17' ]] || fail_recovery "POSTGRESQL_SERVER_MAJOR_UNSUPPORTED:${server_version%%.*}"
-  [[ "$($PG_DUMP --version)" == *' 17.'* && "$($PG_RESTORE --version)" == *' 17.'* ]] || fail_recovery 'POSTGRESQL_CLIENT_MAJOR_MUST_BE_17'
+  [[ "$($PSQL --version)" == *' 17.'* && "$($PG_DUMP --version)" == *' 17.'* && "$($PG_RESTORE --version)" == *' 17.'* ]] || fail_recovery 'POSTGRESQL_CLIENT_MAJOR_MUST_BE_17'
   printf '%s' "$server_version"
+}
+
+assert_restore_environment() {
+  local expected_environment="$1"
+  local actual_environment
+  local effective_environment
+  actual_environment="$($PSQL -X -v ON_ERROR_STOP=1 -Atc "
+    SELECT COALESCE((
+      SELECT split_part(setting, '=', 2)
+      FROM pg_db_role_setting AS settings
+      CROSS JOIN LATERAL unnest(settings.setconfig) AS setting
+      WHERE settings.setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database())
+        AND settings.setrole = 0
+        AND split_part(setting, '=', 1) = 'sco.environment'
+    ), '')")"
+  effective_environment="$($PSQL -X -v ON_ERROR_STOP=1 -Atc "SELECT current_setting('sco.environment', true)")"
+  [[ "$actual_environment" =~ ^(development|test|staging|production)$ ]] || fail_recovery 'RESTORE_TARGET_ENVIRONMENT_INVALID'
+  [[ "$actual_environment" != 'production' ]] || fail_recovery 'PRODUCTION_RESTORE_REFUSED'
+  [[ "$effective_environment" == "$actual_environment" ]] || fail_recovery 'RESTORE_TARGET_ENVIRONMENT_OVERRIDE_REFUSED'
+  [[ "$expected_environment" =~ ^(development|test|staging|production)$ ]] || fail_recovery 'EXPECTED_RESTORE_ENVIRONMENT_INVALID'
+  [[ "$expected_environment" != 'production' ]] || fail_recovery 'PRODUCTION_RESTORE_REFUSED'
+  [[ "$expected_environment" == "$actual_environment" ]] || fail_recovery 'RESTORE_TARGET_ENVIRONMENT_MISMATCH'
+  printf '%s' "$actual_environment"
 }
 
 assert_safe_archive_entries() {

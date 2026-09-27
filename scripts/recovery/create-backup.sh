@@ -35,7 +35,7 @@ if [[ "$destination_kind" == 'off-host' ]]; then
   require_environment SCO_BACKUP_OFF_HOST_ROOT
   off_host_root="$(realpath "$SCO_BACKUP_OFF_HOST_ROOT")"
   [[ "$output_directory" == "$off_host_root" || "$output_directory" == "$off_host_root/"* ]] || fail_recovery 'OUTPUT_OUTSIDE_DECLARED_OFF_HOST_ROOT'
-  [[ "$(findmnt -n -o SOURCE -T "$output_directory")" != "$(findmnt -n -o SOURCE -T /)" ]] || fail_recovery 'OFF_HOST_DESTINATION_REQUIRED'
+  [[ "$(stat -c '%d' "$output_directory")" != "$(stat -c '%d' /)" ]] || fail_recovery 'OFF_HOST_DESTINATION_REQUIRED'
   [[ "${SCO_BACKUP_DOCUMENT_WRITES_QUIESCED:-}" == 'true' ]] || fail_recovery 'DOCUMENT_WRITES_MUST_BE_QUIESCED'
 else
   [[ "${SCO_RECOVERY_ENVIRONMENT:-}" == 'local-drill' ]] || fail_recovery 'LOCAL_DRILL_ENVIRONMENT_REQUIRED'
@@ -51,9 +51,13 @@ exec 9>"$output_directory/.sco-backup.lock"
 flock -n 9 || fail_recovery 'BACKUP_ALREADY_RUNNING'
 work_directory="$(mktemp -d "$work_root/sco-recovery-backup.XXXXXX")"
 temporary_archive=''
+temporary_envelope=''
+temporary_signature=''
 cleanup() {
   rm -rf "$work_directory"
   [[ -z "$temporary_archive" ]] || rm -f "$temporary_archive"
+  [[ -z "$temporary_envelope" ]] || rm -f "$temporary_envelope"
+  [[ -z "$temporary_signature" ]] || rm -f "$temporary_signature"
 }
 trap cleanup EXIT INT TERM
 
@@ -61,10 +65,12 @@ start_milliseconds="$(date +%s%3N)"
 created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 backup_id="sco-$(date -u +%Y%m%dT%H%M%SZ)-$(openssl rand -hex 6)"
 release_sha="${RELEASE_SHA:-unknown}"
+[[ "$release_sha" =~ ^[a-f0-9]{40}$ ]] || fail_recovery 'VALID_RELEASE_SHA_REQUIRED'
 mkdir -p "$work_directory/objects/blobs"
 configure_postgres_connection SCO_BACKUP_DATABASE_URL "$work_directory/postgres-connection"
 server_version="$(assert_postgres_17)"
 database_name="$PGDATABASE"
+[[ "$database_name" == 'sco_dev' ]] || fail_recovery 'SCO_DATABASE_NAME_REQUIRED'
 log_recovery info backup_started --arg backup_id "$backup_id" --arg destination_kind "$destination_kind"
 
 "$PG_DUMP" --format=custom --compress=9 --no-owner --file="$work_directory/database.dump"
@@ -84,11 +90,14 @@ archive_sha256="$(sha256sum "$temporary_archive" | awk '{print $1}')"
 archive_bytes="$(stat -c '%s' "$temporary_archive")"
 temporary_envelope="$output_directory/.$envelope_name.tmp-$$"
 jq -n --arg backupId "$backup_id" --arg createdAt "$created_at" --arg archive "$archive_name" --arg sha256 "$archive_sha256" --argjson bytes "$archive_bytes" --arg releaseSha "$release_sha" '{kind:"sco-recovery-envelope",schemaVersion:1,backupId:$backupId,createdAt:$createdAt,releaseSha:$releaseSha,encryption:"age-x25519",archive:$archive,sha256:$sha256,bytes:$bytes}' > "$temporary_envelope"
-chmod 0600 "$temporary_archive" "$temporary_envelope"
+temporary_signature="$output_directory/.$signature_name.tmp-$$"
+openssl pkeyutl -sign -rawin -inkey "$signing_key" -in "$temporary_envelope" -out "$temporary_signature"
+chmod 0600 "$temporary_archive" "$temporary_envelope" "$temporary_signature"
 mv "$temporary_archive" "$output_directory/$archive_name"
 temporary_archive=''
+mv "$temporary_signature" "$output_directory/$signature_name"
+temporary_signature=''
 mv "$temporary_envelope" "$output_directory/$envelope_name"
-openssl pkeyutl -sign -rawin -inkey "$signing_key" -in "$output_directory/$envelope_name" -out "$output_directory/$signature_name"
-chmod 0600 "$output_directory/$signature_name"
+temporary_envelope=''
 duration_milliseconds="$(( $(date +%s%3N) - start_milliseconds ))"
 log_recovery info backup_completed --arg backup_id "$backup_id" --arg sha256 "$archive_sha256" --argjson bytes "$archive_bytes" --argjson duration_ms "$duration_milliseconds"

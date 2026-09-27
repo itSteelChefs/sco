@@ -59,11 +59,15 @@ async function authenticateBackup(backup, signingPublicKey) {
 async function discover(directory, signingPublicKey) {
   const files = await readdir(directory);
   const backups = [];
+  const backupIds = new Set();
   for (const file of files.filter((name) => name.endsWith('.envelope.json')).sort()) {
     const envelopePath = join(directory, file);
     const envelopeBytes = await readFile(envelopePath);
     const envelope = JSON.parse(envelopeBytes.toString('utf8'));
     if (envelope?.kind !== 'sco-recovery-envelope' || envelope?.schemaVersion !== 1 || !/^sco-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}$/.test(envelope.backupId)) throw new Error(`UNKNOWN_ENVELOPE:${file}`);
+    if (file !== `${envelope.backupId}.envelope.json`) throw new Error(`ENVELOPE_FILENAME_MISMATCH:${file}`);
+    if (backupIds.has(envelope.backupId)) throw new Error(`DUPLICATE_BACKUP_ID:${envelope.backupId}`);
+    backupIds.add(envelope.backupId);
     const archiveName = `${envelope.backupId}.tar.age`;
     if (envelope.archive !== archiveName) throw new Error(`ENVELOPE_ARCHIVE_MISMATCH:${file}`);
     const archivePath = join(directory, archiveName);
@@ -73,6 +77,16 @@ async function discover(directory, signingPublicKey) {
     const backup = { backupId: envelope.backupId, createdAt, envelopePath, archivePath, signaturePath, sha256: envelope.sha256 };
     await authenticateBackup(backup, signingPublicKey);
     backups.push(backup);
+  }
+  const expectedFiles = new Set(backups.flatMap((backup) => [
+    backup.envelopePath,
+    backup.archivePath,
+    backup.signaturePath,
+  ]));
+  for (const file of files) {
+    if (/^sco-.*\.(?:tar\.age|envelope\.json|envelope\.sig)$/.test(file) && !expectedFiles.has(join(directory, file))) {
+      throw new Error(`ORPHAN_RECOVERY_ARTIFACT:${file}`);
+    }
   }
   return backups;
 }
@@ -96,9 +110,9 @@ async function main() {
   if (execute) {
     for (const backup of plan.deletable) {
       await authenticateBackup(backup, signingPublicKey);
-      await rm(backup.envelopePath);
       await rm(backup.archivePath);
       await rm(backup.signaturePath);
+      await rm(backup.envelopePath);
     }
   }
   console.info(JSON.stringify({ level: 'info', event: execute ? 'retention_applied' : 'retention_planned', retained: plan.retained.map((item) => item.backupId), deletable: plan.deletable.map((item) => item.backupId) }));

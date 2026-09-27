@@ -50,3 +50,19 @@ test('retention CLI authenticates envelopes before planning deletion', async () 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('retention CLI refuses orphan recovery artifacts', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sco-retention-'));
+  try {
+    const { publicKey } = generateKeyPairSync('ed25519');
+    const publicKeyPath = join(directory, 'public.pem');
+    await writeFile(publicKeyPath, publicKey.export({ type: 'spki', format: 'pem' }));
+    await writeFile(join(directory, 'sco-20260926T200000Z-012345abcdef.tar.age'), 'orphan');
+    const args = ['apps/api/scripts/recovery/retention.mjs', '--directory', directory, '--signing-public-key', publicKeyPath, '--keep-daily', '1', '--keep-weekly', '0', '--keep-monthly', '0', '--minimum-age-days', '0', '--execute', 'false'];
+    const rejected = spawnSync(process.execPath, args, { encoding: 'utf8' });
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /ORPHAN_RECOVERY_ARTIFACT/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

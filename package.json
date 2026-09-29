@@ -22,6 +22,7 @@
     "ci:secrets": "node scripts/ci/check-sensitive-files.mjs",
     "ci:staging-edge": "scripts/ci/validate-staging-edge-contract.sh",
     "ci:prepare-db": "node scripts/ci/prepare-test-database.mjs",
+    "performance:validate": "scripts/performance/validate-harness.sh",
     "security:workflows": "actionlint .github/workflows/*.yml",
     "security:secrets": "scripts/ci/run-gitleaks.sh",
     "security:filesystem": "trivy fs --scanners vuln,misconfig --include-dev-deps --severity HIGH,CRITICAL --no-progress --exit-code 1 .",

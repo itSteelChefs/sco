@@ -35,7 +35,10 @@ jobs:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: pnpm ci:migrations
       - run: pnpm ci:secrets
-      - run: pnpm --filter @sco/api exec prisma validate --schema prisma/schema.prisma
+      - name: Validate Prisma schema
+        env:
+          DATABASE_URL: postgresql://ci_schema_validation:ci_only_schema_validation@127.0.0.1:5432/sco_dev
+        run: pnpm --filter @sco/api exec prisma validate --schema prisma/schema.prisma
       - run: pnpm --filter @sco/api exec tsc --noEmit
       - run: pnpm --recursive typecheck
       - name: Test rate limiting without database fixtures

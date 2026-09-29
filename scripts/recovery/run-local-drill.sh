@@ -120,6 +120,7 @@ start_database "$source_database" "$source_database_volume"
 PGPASSWORD="$owner_password" "$PSQL" -h 127.0.0.1 -p "$postgres_port" -U sco_restore_owner -d "$database_name" -v ON_ERROR_STOP=1 -c "ALTER DATABASE \"$database_name\" SET sco.environment = 'test'" >/dev/null
 start_storage "$source_storage" "$source_storage_volume"
 node apps/api/scripts/recovery/object-store.mjs ensure-bucket --prefix SCO_BACKUP_S3 --enable-versioning true
+corepack pnpm --filter @sco/api exec prisma generate --schema prisma/schema.prisma
 corepack pnpm --filter @sco/api exec prisma migrate deploy --schema prisma/schema.prisma
 node apps/api/scripts/provision-runtime-role.mjs
 SCO_SEED_PASSWORD='local-recovery-drill-only' corepack pnpm --filter @sco/api exec prisma db seed

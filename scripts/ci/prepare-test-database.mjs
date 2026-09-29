@@ -18,6 +18,7 @@ function run(command, args) {
   execFileSync(command, args, { stdio: 'inherit', env: process.env });
 }
 
+run('corepack', ['pnpm', '--filter', '@sco/api', 'exec', 'prisma', 'generate', '--schema', 'prisma/schema.prisma']);
 run('corepack', ['pnpm', '--filter', '@sco/api', 'exec', 'prisma', 'validate', '--schema', 'prisma/schema.prisma']);
 run('corepack', ['pnpm', '--filter', '@sco/api', 'exec', 'prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma']);
 run('node', ['apps/api/scripts/provision-runtime-role.mjs']);

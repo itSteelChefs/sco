@@ -12,9 +12,18 @@ done
 ! grep -Fq 'proxy_add_x_forwarded_for' "$template" || { echo 'Staging edge must replace, not append, X-Forwarded-For' >&2; exit 1; }
 ! grep -Fq 'deploy-production:' .github/workflows/release.yml || { echo 'Production deployment must remain disabled' >&2; exit 1; }
 ! grep -Fq 'DEPLOY_ENVIRONMENT: production' .github/workflows/release.yml || { echo 'Release workflow must not target Production' >&2; exit 1; }
-grep -Fq 'Only staging deployment is authorized' scripts/deploy/deploy-over-ssh.sh || { echo 'SSH deployment must be staging-only' >&2; exit 1; }
+! grep -Fq 'DEPLOY_SSH_KEY' .github/workflows/release.yml || { echo 'GitHub Actions must not receive a deployment SSH key' >&2; exit 1; }
+! grep -Fq 'deploy-staging:' .github/workflows/release.yml || { echo 'GitHub Actions must not deploy to staging' >&2; exit 1; }
+grep -Fq 'GitHub Actions must not deploy to the VPS' scripts/deploy/deploy-from-owner-laptop.sh || { echo 'Owner deployment script must reject GitHub Actions' >&2; exit 1; }
+grep -Fq 'Owner SSH agent is required' scripts/deploy/deploy-from-owner-laptop.sh || { echo 'Owner deployment script must require an SSH agent' >&2; exit 1; }
+grep -Fq 'StrictHostKeyChecking=yes' scripts/deploy/deploy-from-owner-laptop.sh || { echo 'Owner deployment must require strict host-key checking' >&2; exit 1; }
+grep -Fq 'Staging services must bind to loopback' scripts/deploy/deploy-from-owner-laptop.sh || { echo 'Owner deployment must require loopback binding' >&2; exit 1; }
+grep -Fq '[[ $GHCR_USERNAME =~ ^[A-Za-z0-9-]+$ ]]' scripts/deploy/deploy-from-owner-laptop.sh || { echo 'Owner deployment must validate GHCR usernames before remote use' >&2; exit 1; }
 grep -Fq 'Staging services must bind to loopback' scripts/deploy/docker-host-release.sh || { echo 'Host release must require loopback binding' >&2; exit 1; }
-bash -n scripts/deploy/deploy-over-ssh.sh
+for expected in '--memory 768m --memory-reservation 512m --cpus 0.75 --pids-limit 256' '--memory 384m --memory-reservation 256m --cpus 0.35 --pids-limit 128'; do
+  grep -Fq -- "$expected" scripts/deploy/docker-host-release.sh || { echo "Missing co-resident resource boundary: $expected" >&2; exit 1; }
+done
+bash -n scripts/deploy/deploy-from-owner-laptop.sh
 bash -n scripts/deploy/docker-host-release.sh
 
 if ! command -v nginx >/dev/null; then

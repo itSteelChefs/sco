@@ -73,14 +73,17 @@ for service in sco-api sco-partner-web sco-operations-web; do
 done
 
 docker run -d --restart unless-stopped --name sco-api --network "$network" \
+  --memory 768m --memory-reservation 512m --cpus 0.75 --pids-limit 256 \
   --env-file "$runtime_env" -e "SCO_RELEASE_SHA=$release_sha" -e 'SCO_SERVICE_NAME=sco-api' -e "SENTRY_RELEASE=$release_sha" -e "SENTRY_ENVIRONMENT=$deployment_environment" -p "${bind_address}:${api_port}:3101" \
   --label "com.sco.release.sha=$release_sha" --label "com.sco.image.digest=$api_image" "$api_image" >/dev/null
 started_services+=(sco-api)
 docker run -d --restart unless-stopped --name sco-partner-web --network "$network" \
+  --memory 384m --memory-reservation 256m --cpus 0.35 --pids-limit 128 \
   --env-file "$web_env" -e "SCO_RELEASE_SHA=$release_sha" -e 'SCO_SERVICE_NAME=sco-partner-web' -e "SENTRY_RELEASE=$release_sha" -e "SENTRY_ENVIRONMENT=$deployment_environment" -p "${bind_address}:${partner_port}:3102" \
   --label "com.sco.release.sha=$release_sha" --label "com.sco.image.digest=$partner_image" "$partner_image" >/dev/null
 started_services+=(sco-partner-web)
 docker run -d --restart unless-stopped --name sco-operations-web --network "$network" \
+  --memory 384m --memory-reservation 256m --cpus 0.35 --pids-limit 128 \
   --env-file "$web_env" -e "SCO_RELEASE_SHA=$release_sha" -e 'SCO_SERVICE_NAME=sco-operations-web' -e "SENTRY_RELEASE=$release_sha" -e "SENTRY_ENVIRONMENT=$deployment_environment" -p "${bind_address}:${operations_port}:3103" \
   --label "com.sco.release.sha=$release_sha" --label "com.sco.image.digest=$operations_image" "$operations_image" >/dev/null
 started_services+=(sco-operations-web)

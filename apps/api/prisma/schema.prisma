@@ -222,6 +222,120 @@ model ProductMatchAssessment {
   @@map("product_match_assessments")
 }
 
+model VerifyRequest {
+  id String @id @default(uuid()) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  requestedBy String @map("requested_by") @db.Uuid
+  status String @default("DRAFT")
+  humanReviewConsentedAt DateTime? @map("human_review_consented_at") @db.Timestamptz(6)
+  humanReviewConsentedBy String? @map("human_review_consented_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  quoteRevisions VerifyQuoteRevision[]
+  @@index([companyId, createdAt])
+  @@map("verify_requests")
+}
+
+model VerifyQuoteRevision {
+  id String @id @default(uuid()) @db.Uuid
+  verifyRequestId String @map("verify_request_id") @db.Uuid
+  revisionNumber Int @map("revision_number")
+  submittedCurrencies String[] @map("submitted_currencies")
+  rawContentDocumentId String? @map("raw_content_document_id") @db.Uuid
+  rawContentVersionId String? @map("raw_content_version_id") @db.Uuid
+  inputFingerprint String @map("input_fingerprint")
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  request VerifyRequest @relation(fields: [verifyRequestId], references: [id], onDelete: Restrict)
+  lines VerifyQuoteLine[]
+  runs VerifyRun[]
+  @@unique([verifyRequestId, revisionNumber])
+  @@index([verifyRequestId, createdAt])
+  @@map("verify_quote_revisions")
+}
+
+model VerifyQuoteLine {
+  id String @id @default(uuid()) @db.Uuid
+  verifyQuoteRevisionId String @map("verify_quote_revision_id") @db.Uuid
+  lineNumber Int @map("line_number")
+  lineReference String? @map("line_reference")
+  productIdentityId String? @map("product_identity_id") @db.Uuid
+  unitId String? @map("unit_id") @db.Uuid
+  quantity Decimal? @db.Decimal(18, 4)
+  currencyCode String? @map("currency_code")
+  unitPrice Decimal? @map("unit_price") @db.Decimal(18, 4)
+  isPriceBearing Boolean @default(true) @map("is_price_bearing")
+  isInformational Boolean @default(false) @map("is_informational")
+  isRealZeroValue Boolean @default(false) @map("is_real_zero_value")
+  readinessState String @default("NEEDS_COMPLETION") @map("readiness_state")
+  readinessReason String? @map("readiness_reason")
+  suspectedDuplicate Boolean @default(false) @map("suspected_duplicate")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  revision VerifyQuoteRevision @relation(fields: [verifyQuoteRevisionId], references: [id], onDelete: Restrict)
+  @@unique([verifyQuoteRevisionId, lineNumber])
+  @@map("verify_quote_lines")
+}
+
+model VerifyRun {
+  id String @id @default(uuid()) @db.Uuid
+  verifyQuoteRevisionId String @map("verify_quote_revision_id") @db.Uuid
+  retryOfRunId String? @map("retry_of_run_id") @db.Uuid
+  methodologyVersion String @map("methodology_version")
+  evidenceFingerprint String @map("evidence_fingerprint")
+  status String @default("QUEUED")
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  quoteRevision VerifyQuoteRevision @relation(fields: [verifyQuoteRevisionId], references: [id], onDelete: Restrict)
+  retryOf VerifyRun? @relation("VerifyRunRetry", fields: [retryOfRunId], references: [id], onDelete: Restrict)
+  retries VerifyRun[] @relation("VerifyRunRetry")
+  evidenceBindings VerifyEvidenceBinding[]
+  results VerifyResult[]
+  @@index([verifyQuoteRevisionId, createdAt])
+  @@map("verify_runs")
+}
+
+model VerifyEvidenceBinding {
+  id String @id @default(uuid()) @db.Uuid
+  verifyRunId String @map("verify_run_id") @db.Uuid
+  evidenceType String @map("evidence_type")
+  sourceIdentity String @map("source_identity")
+  sourceVersionIdentity String @map("source_version_identity")
+  documentId String? @map("document_id") @db.Uuid
+  documentVersionId String? @map("document_version_id") @db.Uuid
+  effectiveDate DateTime? @map("effective_date") @db.Date
+  observedAt DateTime? @map("observed_at") @db.Timestamptz(6)
+  freshnessMetadata Json @default("{}") @map("freshness_metadata")
+  approvalState String @map("approval_state")
+  comparabilityMetadata Json @default("{}") @map("comparability_metadata")
+  confidentialityClass String @map("confidentiality_class")
+  integrityVersionReference String @map("integrity_version_reference")
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  run VerifyRun @relation(fields: [verifyRunId], references: [id], onDelete: Restrict)
+  @@map("verify_evidence_bindings")
+}
+
+model VerifyResult {
+  id String @id @default(uuid()) @db.Uuid
+  verifyRunId String @map("verify_run_id") @db.Uuid
+  supersedesResultId String? @map("supersedes_result_id") @db.Uuid
+  methodologyVersion String @map("methodology_version")
+  classification String
+  status String @default("PREPARED")
+  coverage Json @default("{}")
+  perCurrencyScopes Json @default("{}") @map("per_currency_scopes")
+  confidenceContext Json @default("{}") @map("confidence_context")
+  varianceData Json @default("{}") @map("variance_data")
+  exclusionsLimitations Json @default("{}") @map("exclusions_limitations")
+  preparedBy String? @map("prepared_by") @db.Uuid
+  finalisedBy String? @map("finalised_by") @db.Uuid
+  finalisedAt DateTime? @map("finalised_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  run VerifyRun @relation(fields: [verifyRunId], references: [id], onDelete: Restrict)
+  @@index([verifyRunId, createdAt])
+  @@map("verify_results")
+}
+
 model ProductCandidateHistory {
   id String @id @default(uuid()) @db.Uuid
   candidateId String @map("candidate_id") @db.Uuid

@@ -74,6 +74,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           namespace=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          docker buildx create --driver docker-container --use
           docker buildx inspect --bootstrap >/dev/null
           for image in api partner-web operations-web; do
             if docker buildx imagetools inspect "ghcr.io/$namespace/$image:$RELEASE_SHA" >/dev/null 2>&1; then

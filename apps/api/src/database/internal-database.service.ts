@@ -288,4 +288,56 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async createSupplierPaymentScheduleRevision(actor: string, revisionId: string, correlationId?: string) {
     return (await this.pool.query<{ id: string }>('SELECT public.internal_supplier_payment_schedule_revision_create($1,$2,$3) AS id', [actor, revisionId, correlationId ?? null])).rows[0].id;
   }
+
+  // SR-01 remediation: typed gateways replacing sco_runtime direct DML gated only by app.sco_internal.
+  async catalogCategoryCreate(actor: string, code: string, name: string, parentId?: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_catalog_category_create($1,$2,$3,$4)', [actor, code, name, parentId ?? null])).rows[0];
+  }
+  async catalogAttributeCreate(actor: string, categoryId: string, input: { key: string; displayName: string; dataType: string; required?: boolean; unitApplicability?: unknown; validationMetadata?: unknown }) {
+    return (await this.pool.query('SELECT * FROM public.internal_catalog_attribute_create($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb)', [actor, categoryId, input.key, input.displayName, input.dataType, input.required ?? false, JSON.stringify(input.unitApplicability ?? null), JSON.stringify(input.validationMetadata ?? null)])).rows[0];
+  }
+  async catalogProductCreate(actor: string, input: { categoryId: string; brand?: string; manufacturer?: string; modelReference?: string; publicSpecification?: unknown; unitId?: string; warrantyType?: string; warrantyPeriodMonths?: number; warrantyProvider?: string }) {
+    return (await this.pool.query('SELECT * FROM public.internal_catalog_product_create($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)', [actor, input.categoryId, input.brand ?? null, input.manufacturer ?? null, input.modelReference ?? null, JSON.stringify(input.publicSpecification ?? null), input.unitId ?? null, input.warrantyType ?? null, input.warrantyPeriodMonths ?? null, input.warrantyProvider ?? null])).rows[0];
+  }
+  async catalogProductActivate(actor: string, id: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_catalog_product_activate($1,$2)', [actor, id])).rows[0] ?? null;
+  }
+  async candidateSubmitInternal(actor: string, input: { submittedName: string; requestedCategoryId?: string; brand?: string; manufacturer?: string; modelReference?: string; submittedSpecification?: unknown; unitId?: string }) {
+    return (await this.pool.query('SELECT * FROM public.internal_candidate_submit($1,$2,$3,$4,$5,$6,$7::jsonb,$8)', [actor, input.submittedName, input.requestedCategoryId ?? null, input.brand ?? null, input.manufacturer ?? null, input.modelReference ?? null, JSON.stringify(input.submittedSpecification ?? null), input.unitId ?? null])).rows[0];
+  }
+  async candidateTransition(actor: string, id: string, toStatus: string, reason?: string, assessment?: { productIdentityId?: string; explanation?: string; matchedAttributes?: unknown; differingAttributes?: unknown; missingAttributes?: unknown }) {
+    return (await this.pool.query('SELECT * FROM public.internal_candidate_transition($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb)', [actor, id, toStatus, reason ?? null, assessment?.productIdentityId ?? null, assessment?.explanation ?? null, JSON.stringify(assessment?.matchedAttributes ?? null), JSON.stringify(assessment?.differingAttributes ?? null), JSON.stringify(assessment?.missingAttributes ?? null)])).rows[0];
+  }
+  async qualificationCreate(actor: string, legalName: string, contactEmail: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_qualification_create($1,$2,$3)', [actor, legalName, contactEmail])).rows[0];
+  }
+  async qualificationDecide(actor: string, id: string, status: 'APPROVED' | 'REJECTED', reason?: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_qualification_decide($1,$2,$3,$4)', [actor, id, status, reason ?? null])).rows[0] ?? null;
+  }
+  async qualificationList(actor: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_qualification_list($1)', [actor])).rows;
+  }
+  async partnershipCreate(actor: string, companyId: string, type: 'BUYER_PARTNERSHIP' | 'SUPPLIER_PARTNERSHIP') {
+    return (await this.pool.query('SELECT * FROM public.internal_partnership_create($1,$2,$3)', [actor, companyId, type])).rows[0] ?? null;
+  }
+  async partnershipActivate(actor: string, id: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partnership_activate($1,$2)', [actor, id])).rows[0] ?? null;
+  }
+  async executionCycleCreate(actor: string, input: { code: string; name: string; opensAt: string; closesAt: string }) {
+    return (await this.pool.query('SELECT * FROM public.internal_execution_cycle_create($1,$2,$3,$4,$5)', [actor, input.code, input.name, input.opensAt, input.closesAt])).rows[0];
+  }
+  async executionAssign(actor: string, cycleId: string, needId: string, quantity: number, key: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_execution_assign($1,$2,$3,$4,$5)', [actor, cycleId, needId, quantity, key])).rows[0];
+  }
+  async supplierEligibleSources(actor: string, executionItemId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_supplier_eligible_sources($1,$2)', [actor, executionItemId])).rows;
+  }
+  async supplierQualificationDecide(actor: string, qualificationId: string, status: string, reason?: string) {
+    const result = await this.pool.query('SELECT * FROM public.internal_supplier_qualification_decide($1,$2,$3,$4)', [actor, qualificationId, status, reason ?? null]);
+    if (!result.rowCount) throw new Error('SUPPLIER_QUALIFICATION_NOT_FOUND');
+    return result.rows[0];
+  }
+  async purchaseSourceCreate(actor: string, input: { supplierCompanyId: string; supplierPartnershipId: string; sourceCode: string; sourceTypeId: string; branchContext?: string; commercialRoute?: string; operationalContext?: string }) {
+    return (await this.pool.query('SELECT * FROM public.internal_purchase_source_create($1,$2,$3,$4,$5,$6,$7,$8)', [actor, input.supplierCompanyId, input.supplierPartnershipId, input.sourceCode, input.sourceTypeId, input.branchContext ?? null, input.commercialRoute ?? null, input.operationalContext ?? null])).rows[0];
+  }
 }

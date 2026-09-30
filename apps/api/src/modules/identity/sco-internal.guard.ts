@@ -11,13 +11,27 @@ export class ScoInternalGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithAuth>();
     const userId = request.scoUser?.id;
     if (!userId) throw forbidden();
-    const result = await this.database.query(
-      `SELECT 1 FROM "MembershipRole" mr JOIN "RolePermission" rp ON rp.role_id = mr.role_id
-       JOIN "Permission" p ON p.id = rp.permission_id
-       JOIN "CompanyMembership" cm ON cm.id = mr.membership_id
-       WHERE cm."userId" = $1 AND cm.status = 'ACTIVE' AND p.code = 'sco.internal.manage' LIMIT 1`, [userId],
-    );
-    if (result.rowCount !== 1) throw forbidden();
+    // Resolve membership/capability under trusted actor context (app.actor_id), never app.sco_internal: the
+    // CompanyMembership bootstrap policy admits only the caller's own rows, and MembershipRole/RolePermission
+    // require app.tenant_id set to the SCO company just resolved, so a non-SCO or inactive actor reads nothing.
+    const authorized = await this.database.withActor(userId, async (client) => {
+      const membership = await client.query<{ membershipId: string; companyId: string }>(
+        `SELECT cm.id AS "membershipId", cm."companyId" AS "companyId"
+         FROM "CompanyMembership" cm JOIN "Company" co ON co.id = cm."companyId"
+         WHERE cm."userId" = $1 AND cm.status = 'ACTIVE' AND co.type = 'SCO' AND co.status = 'ACTIVE'
+         LIMIT 1`, [userId],
+      );
+      if (membership.rowCount !== 1) return false;
+      await client.query("SELECT set_config('app.tenant_id', $1, true)", [membership.rows[0].companyId]);
+      const capability = await client.query(
+        `SELECT 1 FROM "MembershipRole" mr JOIN "RolePermission" rp ON rp.role_id = mr.role_id
+         JOIN "Permission" p ON p.id = rp.permission_id
+         WHERE mr.membership_id = $1 AND p.code = 'sco.internal.manage' LIMIT 1`,
+        [membership.rows[0].membershipId],
+      );
+      return capability.rowCount === 1;
+    });
+    if (!authorized) throw forbidden();
     return true;
   }
 }

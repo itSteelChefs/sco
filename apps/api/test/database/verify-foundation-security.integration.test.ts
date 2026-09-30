@@ -57,6 +57,9 @@ describe('Verify V0.1 foundation security remediation', () => {
     await owner.query(`TRUNCATE
       verify_raw_content_access_events,
       verify_raw_review_grants,
+      verify_line_result_evidence,
+      verify_line_results,
+      verify_run_line_scope,
       verify_results,
       verify_evidence_bindings,
       verify_runs,
@@ -72,8 +75,11 @@ describe('Verify V0.1 foundation security remediation', () => {
     const queued = id();
     const completes = id();
     const cancels = id();
-    await owner.query('INSERT INTO verify_runs(id,verify_quote_revision_id,methodology_version,evidence_fingerprint,created_by) VALUES($1,$2,\'verify-v0.1\',\'transition\',$3)', [queued, revisionA, analyst]);
-    await owner.query('INSERT INTO verify_runs(id,verify_quote_revision_id,methodology_version,evidence_fingerprint,created_by) VALUES($1,$2,\'verify-v0.1\',\'complete-transition\',$3),($4,$2,\'verify-v0.1\',\'cancel-transition\',$3)', [completes, revisionA, analyst, cancels]);
+    // Batch 1-D enforces one active QUEUED/RUNNING run per revision, so each independently-transitioned fixture run needs its own revision.
+    const revisionQueued = id(); const revisionCompletes = id(); const revisionCancels = id();
+    await owner.query('INSERT INTO verify_quote_revisions(id,verify_request_id,revision_number,submitted_currencies,input_fingerprint,created_by) VALUES($1,$2,2,ARRAY[\'SAR\'],\'input-queued\',$3),($4,$2,3,ARRAY[\'SAR\'],\'input-completes\',$3),($5,$2,4,ARRAY[\'SAR\'],\'input-cancels\',$3)', [revisionQueued, requestA, partnerA, revisionCompletes, revisionCancels]);
+    await owner.query('INSERT INTO verify_runs(id,verify_quote_revision_id,methodology_version,evidence_fingerprint,created_by) VALUES($1,$2,\'verify-v0.1\',\'transition\',$3)', [queued, revisionQueued, analyst]);
+    await owner.query('INSERT INTO verify_runs(id,verify_quote_revision_id,methodology_version,evidence_fingerprint,created_by) VALUES($1,$2,\'verify-v0.1\',\'complete-transition\',$3),($4,$5,\'verify-v0.1\',\'cancel-transition\',$3)', [completes, revisionCompletes, analyst, cancels, revisionCancels]);
     const client = await executor(analyst);
     try {
       await client.query('SELECT internal_verify_quote_line_transition($1,$2,\'READY_FOR_VERIFICATION\',NULL,$3)', [analyst, lineA, id()]);
@@ -99,11 +105,17 @@ describe('Verify V0.1 foundation security remediation', () => {
 
   it('enforces exact document/version and tenant ownership for quote and evidence bindings', async () => {
     const documentA = id(); const documentB = id(); const versionA = id(); const versionB = id();
+    // Batch 1-D requires the run to be RUNNING for evidence binding; use a dedicated revision + running run
+    // (revisionA already carries other non-terminal fixture runs, so the one-active-run-per-revision invariant needs a fresh one).
+    const revisionForDocCheck = id();
+    await owner.query('INSERT INTO verify_quote_revisions(id,verify_request_id,revision_number,submitted_currencies,input_fingerprint,created_by) VALUES($1,$2,5,ARRAY[\'SAR\'],\'input-doc-check\',$3)', [revisionForDocCheck, requestA, partnerA]);
+    const runningRun = id();
+    await owner.query('INSERT INTO verify_runs(id,verify_quote_revision_id,methodology_version,evidence_fingerprint,status,created_by) VALUES($1,$2,\'verify-v0.1\',\'doc-check-running\',\'RUNNING\',$3)', [runningRun, revisionForDocCheck, analyst]);
     await owner.query(`INSERT INTO documents(id,company_id,filename,detected_mime_type,byte_size,storage_key,sha256,status) VALUES($1,$2,'a.pdf','application/pdf',1,$3,'a','AVAILABLE'),($4,$5,'b.pdf','application/pdf',1,$6,'b','AVAILABLE')`, [documentA, companyA, `verify/${documentA}`, documentB, companyB, `verify/${documentB}`]);
     await owner.query('INSERT INTO document_versions(id,company_id,document_id,version,storage_key,sha256) VALUES($1,$2,$3,1,$4,\'a\'),($5,$6,$7,1,$8,\'b\')', [versionA, companyA, documentA, `verify/${versionA}`, versionB, companyB, documentB, `verify/${versionB}`]);
-    await expect(owner.query('INSERT INTO verify_quote_revisions(verify_request_id,revision_number,submitted_currencies,raw_content_document_id,raw_content_version_id,input_fingerprint,created_by) VALUES($1,2,ARRAY[\'SAR\'],$2,$3,\'bad-doc\',$4)', [requestA, documentA, versionB, partnerA])).rejects.toThrow('VERIFY_QUOTE_DOCUMENT_INVALID');
-    await expect(owner.query('INSERT INTO verify_evidence_bindings(verify_run_id,evidence_type,source_identity,source_version_identity,document_id,document_version_id,approval_state,confidentiality_class,integrity_version_reference,created_by) VALUES($1,\'REFERENCE\',\'source\',\'v1\',$2,$3,\'APPROVED\',\'INTERNAL\',\'sha256:x\',$4)', [completedRun, documentB, versionB, analyst])).rejects.toThrow('VERIFY_EVIDENCE_DOCUMENT_INVALID');
-    await owner.query('INSERT INTO verify_evidence_bindings(verify_run_id,evidence_type,source_identity,source_version_identity,document_id,document_version_id,approval_state,confidentiality_class,integrity_version_reference,created_by) VALUES($1,\'REFERENCE\',\'source\',\'v1\',$2,$3,\'APPROVED\',\'INTERNAL\',\'sha256:a\',$4)', [completedRun, documentA, versionA, analyst]);
+    await expect(owner.query('INSERT INTO verify_quote_revisions(verify_request_id,revision_number,submitted_currencies,raw_content_document_id,raw_content_version_id,input_fingerprint,created_by) VALUES($1,6,ARRAY[\'SAR\'],$2,$3,\'bad-doc\',$4)', [requestA, documentA, versionB, partnerA])).rejects.toThrow('VERIFY_QUOTE_DOCUMENT_INVALID');
+    await expect(owner.query('INSERT INTO verify_evidence_bindings(verify_run_id,evidence_type,source_identity,source_version_identity,document_id,document_version_id,approval_state,confidentiality_class,integrity_version_reference,created_by) VALUES($1,\'REFERENCE\',\'source\',\'v1\',$2,$3,\'APPROVED\',\'INTERNAL\',\'sha256:x\',$4)', [runningRun, documentB, versionB, analyst])).rejects.toThrow('VERIFY_EVIDENCE_DOCUMENT_INVALID');
+    await owner.query('INSERT INTO verify_evidence_bindings(verify_run_id,evidence_type,source_identity,source_version_identity,document_id,document_version_id,approval_state,confidentiality_class,integrity_version_reference,created_by) VALUES($1,\'REFERENCE\',\'source\',\'v1\',$2,$3,\'APPROVED\',\'INTERNAL\',\'sha256:a\',$4)', [runningRun, documentA, versionA, analyst]);
   });
 
   it('requires analyst preparation, records its authorization path, and cannot prepare FINAL', async () => {

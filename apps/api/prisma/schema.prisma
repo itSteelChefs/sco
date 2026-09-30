@@ -345,6 +345,45 @@ model VerifyResult {
   @@map("verify_results")
 }
 
+model VerifyRunLineScope {
+  id String @id @default(uuid()) @db.Uuid
+  verifyRunId String @map("verify_run_id") @db.Uuid
+  verifyQuoteLineId String @map("verify_quote_line_id") @db.Uuid
+  isApplicable Boolean @map("is_applicable")
+  capturedReadinessState String @map("captured_readiness_state")
+  capturedReadinessReason String? @map("captured_readiness_reason")
+  capturedCurrencyCode String? @map("captured_currency_code")
+  capturedQuantity Decimal? @map("captured_quantity") @db.Decimal(18, 4)
+  capturedUnitPrice Decimal? @map("captured_unit_price") @db.Decimal(18, 4)
+  capturedIsRealZeroValue Boolean @default(false) @map("captured_is_real_zero_value")
+  capturedAttributableValue Decimal @default(0) @map("captured_attributable_value") @db.Decimal(18, 4)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([verifyRunId, verifyQuoteLineId])
+  @@map("verify_run_line_scope")
+}
+
+model VerifyLineResult {
+  id String @id @default(uuid()) @db.Uuid
+  verifyRunId String @map("verify_run_id") @db.Uuid
+  verifyQuoteLineId String @map("verify_quote_line_id") @db.Uuid
+  outcome String
+  exclusionReason String? @map("exclusion_reason")
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([verifyRunId, verifyQuoteLineId])
+  @@index([verifyRunId])
+  @@map("verify_line_results")
+}
+
+model VerifyLineResultEvidence {
+  id String @id @default(uuid()) @db.Uuid
+  verifyLineResultId String @map("verify_line_result_id") @db.Uuid
+  verifyEvidenceBindingId String @map("verify_evidence_binding_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([verifyLineResultId, verifyEvidenceBindingId])
+  @@map("verify_line_result_evidence")
+}
+
 model ProductCandidateHistory {
   id String @id @default(uuid()) @db.Uuid
   candidateId String @map("candidate_id") @db.Uuid

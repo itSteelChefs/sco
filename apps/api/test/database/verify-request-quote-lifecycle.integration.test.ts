@@ -97,7 +97,7 @@ describe('Verify V0.1 Batch 1-C Partner request and quote revision lifecycle', (
   });
 
   afterAll(async () => {
-    await owner.query(`TRUNCATE verify_raw_content_access_events,verify_raw_review_grants,verify_results,verify_evidence_bindings,verify_runs,verify_quote_level_adjustments,verify_quote_line_adjustments,verify_quote_lines,verify_quote_revisions,verify_requests`);
+    await owner.query(`TRUNCATE verify_raw_content_access_events,verify_raw_review_grants,verify_line_result_evidence,verify_line_results,verify_run_line_scope,verify_results,verify_evidence_bindings,verify_runs,verify_quote_level_adjustments,verify_quote_line_adjustments,verify_quote_lines,verify_quote_revisions,verify_requests`);
     await owner.end();
   });
 
@@ -270,7 +270,7 @@ describe('Verify V0.1 Batch 1-C Partner request and quote revision lifecycle', (
       ['SUBMITTED pointer -> foreign request revision', 'UPDATE verify_requests SET current_submitted_revision_id=$1 WHERE id=$2', [draftRevision!, submittedRequest!], /VERIFY_REQUEST_POINTER_INVALID/],
       ['SUBMITTED -> CANCELLED with a changed pointer', 'UPDATE verify_requests SET status=\'CANCELLED\',current_submitted_revision_id=$1 WHERE id=$2', [openRevision!, submittedRequest!], /VERIFY_REQUEST_POINTER_INVALID/],
       ['SUBMITTED -> CANCELLED with a cleared pointer', 'UPDATE verify_requests SET status=\'CANCELLED\',current_submitted_revision_id=NULL WHERE id=$1', [submittedRequest!], /VERIFY_REQUEST_POINTER_INVALID/],
-      ['SUBMITTED -> IN_REVIEW', 'UPDATE verify_requests SET status=\'IN_REVIEW\' WHERE id=$1', [submittedRequest!], /VERIFY_REQUEST_IMMUTABLE/],
+      // SUBMITTED -> IN_REVIEW is an authorized Batch 1-D transition (see verify-line-results-execution.integration.test.ts); it is no longer denied here.
       ['SUBMITTED request delete', 'DELETE FROM verify_requests WHERE id=$1', [submittedRequest!], /VERIFY_REQUEST_IMMUTABLE/],
       ['CANCELLED pointer -> other revision', 'UPDATE verify_requests SET current_submitted_revision_id=$1 WHERE id=$2', [cancelledDraft!, cancelledRequest!], /VERIFY_REQUEST_IMMUTABLE/],
       ['CANCELLED pointer -> NULL', 'UPDATE verify_requests SET current_submitted_revision_id=NULL WHERE id=$1', [cancelledRequest!], /VERIFY_REQUEST_IMMUTABLE/],

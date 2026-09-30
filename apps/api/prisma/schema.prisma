@@ -227,6 +227,7 @@ model VerifyRequest {
   companyId String @map("company_id") @db.Uuid
   requestedBy String @map("requested_by") @db.Uuid
   status String @default("DRAFT")
+  currentSubmittedRevisionId String? @map("current_submitted_revision_id") @db.Uuid
   humanReviewConsentedAt DateTime? @map("human_review_consented_at") @db.Timestamptz(6)
   humanReviewConsentedBy String? @map("human_review_consented_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -239,17 +240,24 @@ model VerifyRequest {
 model VerifyQuoteRevision {
   id String @id @default(uuid()) @db.Uuid
   verifyRequestId String @map("verify_request_id") @db.Uuid
+  predecessorRevisionId String? @map("predecessor_revision_id") @db.Uuid
   revisionNumber Int @map("revision_number")
+  status String @default("DRAFT")
   submittedCurrencies String[] @map("submitted_currencies")
+  commercialTerms Json @default("{}") @map("commercial_terms")
   rawContentDocumentId String? @map("raw_content_document_id") @db.Uuid
   rawContentVersionId String? @map("raw_content_version_id") @db.Uuid
   inputFingerprint String @map("input_fingerprint")
+  idempotencyKey String? @map("idempotency_key")
   createdBy String @map("created_by") @db.Uuid
+  submittedBy String? @map("submitted_by") @db.Uuid
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   request VerifyRequest @relation(fields: [verifyRequestId], references: [id], onDelete: Restrict)
   lines VerifyQuoteLine[]
   runs VerifyRun[]
   @@unique([verifyRequestId, revisionNumber])
+  @@unique([verifyRequestId, idempotencyKey])
   @@index([verifyRequestId, createdAt])
   @@map("verify_quote_revisions")
 }
@@ -259,6 +267,7 @@ model VerifyQuoteLine {
   verifyQuoteRevisionId String @map("verify_quote_revision_id") @db.Uuid
   lineNumber Int @map("line_number")
   lineReference String? @map("line_reference")
+  itemDescription String? @map("item_description")
   productIdentityId String? @map("product_identity_id") @db.Uuid
   unitId String? @map("unit_id") @db.Uuid
   quantity Decimal? @db.Decimal(18, 4)

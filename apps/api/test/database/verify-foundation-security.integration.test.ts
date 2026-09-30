@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
-let companyA: string; let companyB: string; let internalCompany: string;
+let companyA: string; let companyB: string; let internalCompany: string; let unitId: string;
 let partnerA: string; let partnerB: string; let analyst: string; let approver: string; let rawReviewer: string;
 let requestA: string; let requestB: string; let revisionA: string; let revisionB: string;
 let lineA: string; let failedRun: string; let completedRun: string; let preparedResult: string;
@@ -40,15 +40,16 @@ async function rawGrant(actor: string, request: string, revision: string | null,
 
 describe('Verify V0.1 foundation security remediation', () => {
   beforeAll(async () => {
-    companyA = id(); companyB = id(); internalCompany = id(); partnerA = id(); partnerB = id(); analyst = id(); approver = id(); rawReviewer = id();
+    companyA = id(); companyB = id(); internalCompany = id(); partnerA = id(); partnerB = id(); analyst = id(); approver = id(); rawReviewer = id(); unitId = id();
     await owner.query('INSERT INTO "Company"(id,name,type) VALUES($1,\'Verify A\',\'PARTNER\'),($2,\'Verify B\',\'PARTNER\'),($3,\'Verify Internal\',\'SCO\')', [companyA, companyB, internalCompany]);
+    await owner.query('INSERT INTO unit_definitions(id,code,name,dimension) VALUES($1,$2,\'Each\',\'count\')', [unitId, `verify-foundation-unit-${unitId}`]);
     await owner.query('INSERT INTO "User"(id,email,"passwordHash") VALUES($1,$2,\'x\'),($3,$4,\'x\'),($5,$6,\'x\'),($7,$8,\'x\'),($9,$10,\'x\')', [partnerA, `${partnerA}@verify.test`, partnerB, `${partnerB}@verify.test`, analyst, `${analyst}@verify.test`, approver, `${approver}@verify.test`, rawReviewer, `${rawReviewer}@verify.test`]);
     await owner.query('INSERT INTO "CompanyMembership"(id,"userId","companyId",status) VALUES($1,$2,$3,\'ACTIVE\'),($4,$5,$6,\'ACTIVE\'),($7,$8,$9,\'ACTIVE\'),($10,$11,$9,\'ACTIVE\'),($12,$13,$9,\'ACTIVE\')', [id(), partnerA, companyA, id(), partnerB, companyB, id(), analyst, internalCompany, id(), approver, id(), rawReviewer]);
     await grant(analyst, 'verify.analyst'); await grant(approver, 'verify.approver'); await grant(rawReviewer, 'verify.raw_review_access');
     requestA = id(); requestB = id(); revisionA = id(); revisionB = id(); lineA = id(); failedRun = id(); completedRun = id();
     await owner.query('INSERT INTO verify_requests(id,company_id,requested_by,human_review_consented_at,human_review_consented_by) VALUES($1,$2,$3,now(),$3),($4,$5,$6,NULL,NULL)', [requestA, companyA, partnerA, requestB, companyB, partnerB]);
     await owner.query('INSERT INTO verify_quote_revisions(id,verify_request_id,revision_number,submitted_currencies,input_fingerprint,created_by) VALUES($1,$2,1,ARRAY[\'SAR\'],\'input-a\',$3),($4,$5,1,ARRAY[\'USD\'],\'input-b\',$6)', [revisionA, requestA, partnerA, revisionB, requestB, partnerB]);
-    await owner.query('INSERT INTO verify_quote_lines(id,verify_quote_revision_id,line_number,currency_code,unit_price,is_price_bearing,readiness_state) VALUES($1,$2,1,\'SAR\',100,true,\'NEEDS_COMPLETION\')', [lineA, revisionA]);
+    await owner.query('INSERT INTO verify_quote_lines(id,verify_quote_revision_id,line_number,item_description,quantity,unit_id,currency_code,unit_price,is_price_bearing,readiness_state) VALUES($1,$2,1,\'Compressor CX-500\',2,$3,\'SAR\',100,true,\'NEEDS_COMPLETION\')', [lineA, revisionA, unitId]);
     await owner.query('INSERT INTO verify_runs(id,verify_quote_revision_id,methodology_version,evidence_fingerprint,status,created_by) VALUES($1,$2,\'verify-v0.1\',\'failed\',\'FAILED\',$3),($4,$2,\'verify-v0.1\',\'complete\',\'COMPLETED\',$3)', [failedRun, revisionA, analyst, completedRun]);
   });
 

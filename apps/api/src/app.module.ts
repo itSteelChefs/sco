@@ -12,8 +12,9 @@ import { HealthController } from './common/http/health.controller.js';
 import { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { correlationIdMiddleware } from './common/http/correlation-id.middleware.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
+import { VerifyModule } from './modules/verify/verify.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { MetricsController } from './observability/metrics.controller.js';
 
-@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
+@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
 export class AppModule implements NestModule { configure(consumer: MiddlewareConsumer) { consumer.apply(correlationIdMiddleware).forRoutes('*'); } }

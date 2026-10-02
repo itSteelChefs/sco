@@ -32,8 +32,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run test/database/supplier-purchase-order-core.integration.test.ts --no-file-parallelism && vitest run test/database --no-file-parallelism --exclude test/database/supplier-purchase-order-core.integration.test.ts --exclude test/database/supplier-commercial-document-foundation.integration.test.ts --exclude test/database/supplier-commercial-document-verification.integration.test.ts && vitest run test/database/supplier-commercial-document-foundation.integration.test.ts test/database/supplier-commercial-document-verification.integration.test.ts --no-file-parallelism && node --test test/environment.test.mjs",
-    "test:integration": "vitest run test/integration",
+    "test": "node ../../scripts/test/require-test-database.mjs && vitest run test/database/supplier-purchase-order-core.integration.test.ts --no-file-parallelism && vitest run test/database --no-file-parallelism --exclude test/database/supplier-purchase-order-core.integration.test.ts --exclude test/database/supplier-commercial-document-foundation.integration.test.ts --exclude test/database/supplier-commercial-document-verification.integration.test.ts && vitest run test/database/supplier-commercial-document-foundation.integration.test.ts test/database/supplier-commercial-document-verification.integration.test.ts --no-file-parallelism && node --test test/environment.test.mjs",
+    "test:integration": "node ../../scripts/test/require-test-database.mjs && vitest run test/integration",
     "db:seed": "prisma db seed"
   },
   "prisma": {

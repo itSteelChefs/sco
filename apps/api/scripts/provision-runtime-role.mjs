@@ -5,6 +5,7 @@ const databaseUrl = process.env.DATABASE_URL;
 const runtimePassword = process.env.RUNTIME_DATABASE_PASSWORD;
 const internalPassword = process.env.SCO_INTERNAL_DATABASE_PASSWORD;
 const verifySystemPassword = process.env.VERIFY_SYSTEM_DATABASE_PASSWORD;
+const purposeAuthorityPassword = process.env.PURPOSE_AUTHORITY_DATABASE_PASSWORD;
 const mode = process.argv[2] ?? 'activate';
 
 if (!databaseUrl || !['activate', 'prepare-restore'].includes(mode)) {
@@ -18,7 +19,7 @@ const client = new Client({ connectionString: databaseUrl });
 
 try {
   await client.connect();
-  const roleNames = ['sco_runtime', 'sco_internal_executor', 'sco_verify_system_executor'];
+  const roleNames = ['sco_runtime', 'sco_internal_executor', 'sco_verify_system_executor', 'sco_purpose_authority'];
   let successMessage;
   await client.query('BEGIN');
   try {
@@ -52,6 +53,11 @@ try {
         const verifySystem = await client.query('SELECT quote_literal($1) AS password_literal', [verifySystemPassword]);
         await client.query(`ALTER ROLE sco_verify_system_executor LOGIN PASSWORD ${verifySystem.rows[0].password_literal}`);
         await client.query('ALTER ROLE sco_verify_system_executor NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS');
+      }
+      if (purposeAuthorityPassword && existing.rows.some((row) => row.rolname === 'sco_purpose_authority')) {
+        const purposeAuthority = await client.query('SELECT quote_literal($1) AS password_literal', [purposeAuthorityPassword]);
+        await client.query(`ALTER ROLE sco_purpose_authority LOGIN PASSWORD ${purposeAuthority.rows[0].password_literal}`);
+        await client.query('ALTER ROLE sco_purpose_authority NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS');
       }
       successMessage = 'Provisioned the local runtime database role from environment variables.';
     }

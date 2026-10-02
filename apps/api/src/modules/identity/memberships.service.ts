@@ -10,6 +10,12 @@ type MembershipRow = {
   status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
 };
 
+export type ActiveCompanyContext = {
+  id: string;
+  name: string;
+  type: string;
+};
+
 @Injectable()
 export class MembershipsService {
   constructor(@Inject(RuntimeDatabaseService) private readonly database: RuntimeDatabaseService) {}
@@ -38,5 +44,19 @@ export class MembershipsService {
     if (activeMemberships.length > 1) throw tenantContextRequired();
     const membership = activeMemberships[0];
     return { membershipId: membership.id, userId: membership.userId, companyId: membership.companyId, status: 'ACTIVE' };
+  }
+
+  async listActiveCompanies(userId: string): Promise<ActiveCompanyContext[]> {
+    return this.database.withActor(userId, async (client) => {
+      const result = await client.query<ActiveCompanyContext>(
+        `SELECT c.id, c.name, c.type
+         FROM "CompanyMembership" m
+         JOIN "Company" c ON c.id = m."companyId"
+         WHERE m."userId" = $1 AND m.status = 'ACTIVE' AND c.status = 'ACTIVE'
+         ORDER BY c.name, c.id`,
+        [userId],
+      );
+      return result.rows;
+    });
   }
 }

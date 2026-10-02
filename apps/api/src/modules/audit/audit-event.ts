@@ -8,4 +8,8 @@ export type AuditEvent = {
   entityId?: string;
   metadata?: Record<string, unknown>;
   correlationId?: string;
+  purposeCode?: string;
+  flowSource?: string;
+  flowTarget?: string;
+  authorizationDecision?: 'ALLOWED' | 'DENIED';
 };

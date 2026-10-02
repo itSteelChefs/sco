@@ -8,6 +8,7 @@ import { MembershipsService } from './memberships.service.js';
 import { TenantProbesController } from './tenant-probes.controller.js';
 import { UsersService } from './users.service.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { RbacModule } from '../rbac/rbac.module.js';
 import { QualificationService } from './qualification.service.js';
 import { PartnershipsService } from './partnerships.service.js';
 import { QualificationController } from './qualification.controller.js';
@@ -20,7 +21,7 @@ import { RfqService } from './rfq.service.js';
 import { AlternativeProductService } from './alternative-product.service.js';
 
 @Module({
-  imports: [DatabaseModule, AuditModule, forwardRef(() => AuthModule)],
+  imports: [DatabaseModule, AuditModule, RbacModule, forwardRef(() => AuthModule)],
   controllers: [CompanyAccessController, TenantProbesController, QualificationController],
   providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
   exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],

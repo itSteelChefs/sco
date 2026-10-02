@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { notFound } from '../../common/http/api-error.js';
 import { TenantTransactionService } from '../../database/tenant-transaction.service.js';
 import type { TenantContext } from '../../common/tenant/tenant-context.js';
+import { PurposeDecisionAuthorityService } from '../rbac/purpose-decision-authority.service.js';
 
 type PartnerVerifyCoverageEntry = {
   currency: string;
@@ -37,12 +38,16 @@ type PartnerVerifyResultRow = {
 
 @Injectable()
 export class PartnerVerifyService {
-  constructor(@Inject(TenantTransactionService) private readonly tenants: TenantTransactionService) {}
+  constructor(@Inject(TenantTransactionService) private readonly tenants: TenantTransactionService, @Inject(PurposeDecisionAuthorityService) private readonly purposeDecisions: PurposeDecisionAuthorityService) {}
 
   async getResult(tenant: TenantContext, requestId: string): Promise<PartnerVerifyResultDto> {
-    const result = await this.tenants.withTenant(tenant.userId, tenant.companyId, (client) =>
-      client.query<PartnerVerifyResultRow>('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [tenant.userId, tenant.companyId, requestId]),
-    );
+    const result = await this.tenants.withTenant(tenant.userId, tenant.companyId, async (client) => {
+      const binding = (await client.query<{ backend_pid: number; transaction_id: string }>('SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id')).rows[0];
+      const decisionId = await this.purposeDecisions.issuePartnerVerifyRead(tenant.userId, tenant.companyId);
+      await this.purposeDecisions.consumePartnerVerifyRead(decisionId, tenant.userId, tenant.companyId, binding.backend_pid, binding.transaction_id);
+      await client.query("SELECT set_config('app.purpose_decision', $1, true)", [decisionId]);
+      return client.query<PartnerVerifyResultRow>('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [tenant.userId, tenant.companyId, requestId]);
+    });
     const row = result.rows[0];
     if (!row) throw notFound();
     return this.toDto(row);

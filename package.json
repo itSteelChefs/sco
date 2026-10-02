@@ -22,6 +22,8 @@
     "ci:secrets": "node scripts/ci/check-sensitive-files.mjs",
     "ci:staging-edge": "scripts/ci/validate-staging-edge-contract.sh",
     "ci:prepare-db": "node scripts/ci/prepare-test-database.mjs",
+    "test:database": "node scripts/test/run-with-test-db.mjs corepack pnpm --filter @sco/api test",
+    "test:integration": "node scripts/test/run-with-test-db.mjs corepack pnpm --filter @sco/api test:integration",
     "performance:validate": "scripts/performance/validate-harness.sh",
     "security:workflows": "actionlint .github/workflows/*.yml",
     "security:secrets": "scripts/ci/run-gitleaks.sh",
@@ -35,8 +37,12 @@
     "dev:api": "corepack pnpm --filter @sco/api exec tsx src/main.ts",
     "dev:partner": "corepack pnpm --filter @sco/partner-web dev",
     "dev:operations": "corepack pnpm --filter @sco/operations-web dev",
-    "test": "pnpm --recursive test",
-    "lint": "pnpm --recursive lint",
-    "typecheck": "pnpm --recursive typecheck"
+    "test": "node scripts/test/run-with-test-db.mjs corepack pnpm --recursive test",
+    "test:e2e": "node scripts/test/run-with-test-db.mjs corepack pnpm exec playwright test",
+    "lint": "corepack pnpm --recursive lint",
+    "typecheck": "corepack pnpm --recursive typecheck"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

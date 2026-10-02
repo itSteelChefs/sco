@@ -1,9 +1,10 @@
-import { BadRequestException, Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { unauthenticated } from '../../common/http/api-error.js';
 import { AuthGuard, cookieValue, type RequestWithAuth } from './guards/auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { SessionService } from './session.service.js';
+import { MembershipsService } from '../identity/memberships.service.js';
 
 type LoginBody = { email?: unknown; password?: unknown };
 type RequestWithHeaders = RequestWithAuth;
@@ -18,6 +19,7 @@ export class AuthController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(MembershipsService) private readonly memberships: MembershipsService,
   ) {}
 
   @Post('login')
@@ -28,6 +30,12 @@ export class AuthController {
     const token = await this.auth.login(body.email, body.password);
     reply.header('set-cookie', sessionCookie(token));
     return { ok: true };
+  }
+
+  @Get('context')
+  @UseGuards(AuthGuard)
+  async context(@Req() request: RequestWithAuth) {
+    return { companies: await this.memberships.listActiveCompanies(request.scoUser!.id) };
   }
 
   @Post('logout')

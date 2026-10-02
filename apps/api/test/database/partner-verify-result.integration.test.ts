@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PartnerVerifyService } from '../../src/modules/verify/partner-verify.service.js';
 import { TenantTransactionService } from '../../src/database/tenant-transaction.service.js';
 import { PartnerCompanyGuard } from '../../src/common/tenant/partner-company.guard.js';
+import { PurposeDecisionAuthorityService } from '../../src/modules/rbac/purpose-decision-authority.service.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -26,6 +27,19 @@ async function runtimeClient(actor: string, tenant: string) {
   await connection.connect();
   await connection.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [actor, tenant]);
   return connection;
+}
+
+async function authorizePartnerRead(connection: Client, actor: string, company: string) {
+  await connection.query('BEGIN');
+  const binding = (await connection.query<{ backend_pid: number; transaction_id: string }>('SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id')).rows[0];
+  const authority = new Client({ connectionString: process.env.PURPOSE_AUTHORITY_DATABASE_URL });
+  await authority.connect();
+  try {
+    const decision = (await authority.query('SELECT public.issue_partner_verify_read_purpose_decision($1,$2) AS id', [actor, company])).rows[0].id as string;
+    await authority.query('SELECT public.consume_partner_verify_read_purpose_decision($1,$2,$3,$4,$5::bigint)', [decision, actor, company, binding.backend_pid, binding.transaction_id]);
+    await connection.query("SELECT set_config('app.purpose_decision',$1,true)", [decision]);
+    return decision;
+  } finally { await authority.end(); }
 }
 
 async function systemClient() {
@@ -196,6 +210,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       const { request, revision, run, result } = await buildFinalResult(companyA, writer, 'FULL');
       const partner = await runtimeClient(reader, companyA);
       try {
+        await authorizePartnerRead(partner, reader, companyA);
         const row = (await partner.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows[0];
         expect(row).toMatchObject({ request_id: request, revision_id: revision, run_id: run, result_id: result, status: 'FINAL', classification: 'FULL' });
         expect(row.finalized_at).toBeTruthy();
@@ -204,7 +219,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
 
     it('via PartnerVerifyService (real TS service, real DB): response top-level keys match the explicit allowlist exactly', async () => {
       const { request } = await buildFinalResult(companyA, writer, 'FULL');
-      const service = new PartnerVerifyService(new TenantTransactionService(new RealRuntimeDatabase() as never));
+      const service = new PartnerVerifyService(new TenantTransactionService(new RealRuntimeDatabase() as never), new PurposeDecisionAuthorityService());
       const dto = await service.getResult({ membershipId: id(), userId: reader, companyId: companyA, status: 'ACTIVE' }, request);
       expect(Object.keys(dto).sort()).toEqual(['classification', 'coverage', 'finalizedAt', 'requestId', 'resultId', 'revisionId', 'runId', 'status'].sort());
       expect(Object.keys(dto.coverage[0]).sort()).toEqual(['currency', 'excludedLineCount', 'insufficientLineCount', 'lineCoveragePercent', 'totalLineCount', 'valueCoveragePercent', 'verifiedLineCount'].sort());
@@ -216,7 +231,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
 
     it('does not recalculate the authoritative result: DTO values are a direct pass-through of verify_results/per_currency_scopes', async () => {
       const { request, result } = await buildFinalResult(companyA, writer, 'PARTIAL');
-      const service = new PartnerVerifyService(new TenantTransactionService(new RealRuntimeDatabase() as never));
+      const service = new PartnerVerifyService(new TenantTransactionService(new RealRuntimeDatabase() as never), new PurposeDecisionAuthorityService());
       const dto = await service.getResult({ membershipId: id(), userId: reader, companyId: companyA, status: 'ACTIVE' }, request);
       const authoritative = (await owner.query('SELECT classification, per_currency_scopes FROM verify_results WHERE id=$1', [result])).rows[0];
       expect(dto.classification).toBe(authoritative.classification);
@@ -233,10 +248,130 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       const { request } = await buildFinalResult(companyA, writer, 'PARTIAL');
       const partner = await runtimeClient(reader, companyA);
       try {
+        await authorizePartnerRead(partner, reader, companyA);
         const row = (await partner.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows[0];
         expect(row.classification).toBe('PARTIAL');
         expect(row.classification).not.toBe('FULL');
       } finally { await partner.end(); }
+    });
+  });
+
+  describe('Stage 007 SQL purpose boundary', () => {
+    it('denies direct, forged, wrong-purpose, and cross-actor runtime calls while allowing a trusted decision', async () => {
+      const { request } = await buildFinalResult(companyA, writer, 'FULL');
+      const direct = await runtimeClient(reader, companyA);
+      try {
+        await expect(direct.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+        await direct.query("SELECT set_config('app.purpose_decision',$1,false),set_config('app.purpose_code','PUR-15',false)", [id()]);
+        await expect(direct.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+      } finally { await direct.end(); }
+
+      const decisionForReader = new Client({ connectionString: process.env.RUNTIME_DATABASE_URL });
+      await decisionForReader.connect();
+      try {
+        await decisionForReader.query("SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)", [writer, companyA]);
+        await authorizePartnerRead(decisionForReader, reader, companyA);
+        await expect(decisionForReader.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [writer, companyA, request])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+      } finally { await decisionForReader.end(); }
+
+      const allowed = await runtimeClient(reader, companyA);
+      try {
+        await authorizePartnerRead(allowed, reader, companyA);
+        expect((await allowed.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows).toHaveLength(1);
+      } finally { await allowed.end(); }
+    });
+
+    it('consumes a decision once: replay in a new runtime transaction is denied', async () => {
+      const { request } = await buildFinalResult(companyA, writer, 'FULL');
+      const first = await runtimeClient(reader, companyA);
+      let decision: string;
+      try {
+        decision = await authorizePartnerRead(first, reader, companyA);
+        expect((await first.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows).toHaveLength(1);
+        await first.query('COMMIT');
+      } finally { await first.end(); }
+
+      const replay = await runtimeClient(reader, companyA);
+      try {
+        await replay.query('BEGIN');
+        await replay.query("SELECT set_config('app.purpose_decision',$1,true)", [decision!]);
+        await expect(replay.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+      } finally { await replay.end(); }
+    });
+
+    it('does not reactivate a consumed decision when the runtime business transaction rolls back', async () => {
+      const { request } = await buildFinalResult(companyA, writer, 'FULL');
+      const failedBusinessTransaction = await runtimeClient(reader, companyA);
+      let decision: string;
+      try {
+        decision = await authorizePartnerRead(failedBusinessTransaction, reader, companyA);
+        await expect(failedBusinessTransaction.query('SELECT 1 / 0')).rejects.toThrow();
+        await failedBusinessTransaction.query('ROLLBACK');
+      } finally { await failedBusinessTransaction.end(); }
+
+      const retry = await runtimeClient(reader, companyA);
+      try {
+        await retry.query('BEGIN');
+        await retry.query("SELECT set_config('app.purpose_decision',$1,true)", [decision!]);
+        await expect(retry.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+      } finally { await retry.end(); }
+    });
+
+    it('denies an expired decision and bounded authority cleanup removes it without touching an active decision', async () => {
+      const authority = new Client({ connectionString: process.env.PURPOSE_AUTHORITY_DATABASE_URL });
+      await authority.connect();
+      let activeDecision: string; let expiredDecision: string;
+      try {
+        activeDecision = (await authority.query('SELECT public.issue_partner_verify_read_purpose_decision($1,$2) AS id', [reader, companyA])).rows[0].id as string;
+        expiredDecision = (await authority.query('SELECT public.issue_partner_verify_read_purpose_decision($1,$2) AS id', [reader, companyA])).rows[0].id as string;
+        await owner.query('UPDATE partner_verify_purpose_decisions SET issued_at = clock_timestamp() - interval \'2 minutes\', expires_at = clock_timestamp() - interval \'90 seconds\' WHERE id=$1', [expiredDecision]);
+        const expiringRuntime = await runtimeClient(reader, companyA);
+        try {
+          await expiringRuntime.query('BEGIN');
+          const binding = (await expiringRuntime.query<{ backend_pid: number; transaction_id: string }>('SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id')).rows[0];
+          await expect(authority.query('SELECT public.consume_partner_verify_read_purpose_decision($1,$2,$3,$4,$5::bigint)', [expiredDecision, reader, companyA, binding.backend_pid, binding.transaction_id])).rejects.toThrow('PARTNER_VERIFY_PURPOSE_CONSUME_FORBIDDEN');
+        } finally { await expiringRuntime.end(); }
+        const cleaned = (await authority.query('SELECT public.cleanup_expired_partner_verify_purpose_decisions($1) AS count', [companyA])).rows[0].count as number;
+        expect(cleaned).toBeGreaterThanOrEqual(1);
+      } finally { await authority.end(); }
+      expect((await owner.query('SELECT id FROM partner_verify_purpose_decisions WHERE id=$1', [expiredDecision!])).rows).toHaveLength(0);
+      expect((await owner.query('SELECT id FROM partner_verify_purpose_decisions WHERE id=$1', [activeDecision!])).rows).toHaveLength(1);
+      const runtime = await runtimeClient(reader, companyA);
+      try {
+        await runtime.query('BEGIN');
+        await runtime.query("SELECT set_config('app.purpose_decision',$1,true)", [expiredDecision!]);
+        await expect(runtime.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, id()])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+      } finally { await runtime.end(); }
+      const privileges = await owner.query(`SELECT has_function_privilege('sco_runtime','public.cleanup_expired_partner_verify_purpose_decisions(uuid)','EXECUTE') AS runtime_cleanup, has_function_privilege('public','public.consume_partner_verify_read_purpose_decision(uuid,uuid,uuid,integer,bigint)','EXECUTE') AS public_consume`);
+      expect(privileges.rows[0]).toEqual({ runtime_cleanup: false, public_consume: false });
+    });
+
+    it('allows exactly one concurrent authority consumption for one runtime-bound decision', async () => {
+      const { request } = await buildFinalResult(companyA, writer, 'FULL');
+      const authority = new Client({ connectionString: process.env.PURPOSE_AUTHORITY_DATABASE_URL });
+      await authority.connect();
+      const decision = (await authority.query('SELECT public.issue_partner_verify_read_purpose_decision($1,$2) AS id', [reader, companyA])).rows[0].id as string;
+      await authority.end();
+      const consumers = await Promise.all([runtimeClient(reader, companyA), runtimeClient(reader, companyA)]);
+      try {
+        const bindings = await Promise.all(consumers.map(async (consumer) => {
+          await consumer.query('BEGIN');
+          return (await consumer.query<{ backend_pid: number; transaction_id: string }>('SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id')).rows[0];
+        }));
+        const outcomes = await Promise.allSettled(bindings.map(async (binding) => {
+          const connection = new Client({ connectionString: process.env.PURPOSE_AUTHORITY_DATABASE_URL });
+          await connection.connect();
+          try { await connection.query('SELECT public.consume_partner_verify_read_purpose_decision($1,$2,$3,$4,$5::bigint)', [decision, reader, companyA, binding.backend_pid, binding.transaction_id]); }
+          finally { await connection.end(); }
+        }));
+        const winner = outcomes.findIndex((outcome) => outcome.status === 'fulfilled');
+        expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+        await consumers[winner].query("SELECT set_config('app.purpose_decision',$1,true)", [decision]);
+        expect((await consumers[winner].query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows).toHaveLength(1);
+        const loser = winner === 0 ? 1 : 0;
+        await consumers[loser].query("SELECT set_config('app.purpose_decision',$1,true)", [decision]);
+        await expect(consumers[loser].query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rejects.toThrow('PARTNER_VERIFY_READ_FORBIDDEN');
+      } finally { await Promise.all(consumers.map((consumer) => consumer.end())); }
     });
   });
 
@@ -245,6 +380,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       const { request } = await buildFinalResult(companyB, otherPartnerWriter, 'FULL');
       const partner = await runtimeClient(reader, companyA);
       try {
+        await authorizePartnerRead(partner, reader, companyA);
         const rows = (await partner.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows;
         expect(rows).toEqual([]);
       } finally { await partner.end(); }
@@ -312,7 +448,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
         await createRevision(partner, writer, companyA, request, null, `draft-${id()}`, [{ lineNumber: 1, itemDescription: 'x', quantity: 1, unitId, currencyCode: 'SAR', unitPrice: 10, isPriceBearing: true }]);
       } finally { /* still SUBMITTED at most, never COMPLETED */ }
       const reading = await runtimeClient(reader, companyA);
-      try { expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request!])).rows).toEqual([]); }
+      try { await authorizePartnerRead(reading, reader, companyA); expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request!])).rows).toEqual([]); }
       finally { await reading.end(); await partner.end(); }
     });
 
@@ -346,7 +482,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       // Finalizing the historical (non-current) revision's result never completes the request.
       expect((await owner.query('SELECT status FROM verify_requests WHERE id=$1', [request!])).rows[0].status).not.toBe('COMPLETED');
       const reading = await runtimeClient(reader, companyA);
-      try { expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request!])).rows).toEqual([]); }
+      try { await authorizePartnerRead(reading, reader, companyA); expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request!])).rows).toEqual([]); }
       finally { await reading.end(); }
     });
 
@@ -373,6 +509,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       expect((await owner.query('SELECT status FROM verify_results WHERE id=$1', [firstResult])).rows[0].status).toBe('SUPERSEDED');
       const reading = await runtimeClient(reader, companyA);
       try {
+        await authorizePartnerRead(reading, reader, companyA);
         const row = (await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows[0];
         expect(row.result_id).toBe(secondResult!);
         expect(row.result_id).not.toBe(firstResult);
@@ -390,7 +527,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       const system = await systemClient();
       try { const run = await runCreate(system, revision!); await runStart(system, run); } finally { await system.end(); }
       const reading = await runtimeClient(reader, companyA);
-      try { expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request!])).rows).toEqual([]); }
+      try { await authorizePartnerRead(reading, reader, companyA); expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request!])).rows).toEqual([]); }
       finally { await reading.end(); }
     });
 
@@ -421,7 +558,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       // Ambiguous: the gateway must return zero rows -- not firstResult, not secondResult, not an error revealing
       // that a candidate exists at all. Same empty shape as a genuinely nonexistent/not-yet-completed request.
       const reading = await runtimeClient(reader, companyA);
-      try { expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows).toEqual([]); }
+      try { await authorizePartnerRead(reading, reader, companyA); expect((await reading.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows).toEqual([]); }
       finally { await reading.end(); }
 
       // Reconcile using the EXISTING approved supersession lifecycle only -- no invented rule, no new pointer.
@@ -430,6 +567,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
 
       const reading2 = await runtimeClient(reader, companyA);
       try {
+        await authorizePartnerRead(reading2, reader, companyA);
         const row = (await reading2.query('SELECT * FROM public.partner_verify_result_get($1,$2,$3)', [reader, companyA, request])).rows[0];
         expect(row.result_id).toBe(secondResult!);
       } finally { await reading2.end(); }

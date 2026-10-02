@@ -57,16 +57,7 @@ beforeAll(async () => {
   await owner.connect();
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
-  await owner.query('DELETE FROM "Session"');
-  await owner.query('DELETE FROM "MembershipRole"');
-  await owner.query('DELETE FROM "RolePermission"');
-  await owner.query('DELETE FROM "Role"');
-  await owner.query('DELETE FROM document_versions');
-  await owner.query('DELETE FROM documents');
-  await owner.query('DELETE FROM audit_logs');
-  await owner.query('DELETE FROM "CompanyMembership"');
-  await owner.query('DELETE FROM "User"');
-  await owner.query('DELETE FROM "Company"');
+  await owner.query('TRUNCATE TABLE "Company", "User" CASCADE');
   await owner.query(
     `INSERT INTO "Company" (id, name, type) VALUES
       ($1, 'Partner A', 'PARTNER'),
@@ -310,6 +301,43 @@ describe('Security Gate: request → authentication → membership → tenant �
     expect(denied.statusCode).toBe(403);
     const internal = await requestAs(partnerCookie, 'GET', '/api/v1/internal/companies', companyA);
     expect(internal.statusCode).toBe(403);
+  });
+
+  it('derives purpose from trusted route metadata and ignores a client-supplied purpose header', async () => {
+    const cookie = await login('partner-a@sco.test');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/partner/me',
+      headers: { cookie, 'x-sco-company-id': companyA, 'x-sco-purpose': 'PUR-17' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const audit = await owner.query(
+      `SELECT purpose_code, authorization_decision, metadata
+       FROM audit_logs
+       WHERE action = 'authorization.purpose_allowed' AND actor_user_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [userA],
+    );
+    expect(audit.rows[0]).toMatchObject({ purpose_code: 'PUR-02', authorization_decision: 'ALLOWED' });
+    expect(JSON.stringify(audit.rows[0].metadata)).not.toContain('PUR-17');
+  });
+
+  it('requires the approved extraction permission in addition to the trusted document purpose', async () => {
+    const cookie = await login('partner-a@sco.test');
+    const documentId = '30000000-0000-4000-8000-000000000009';
+    await owner.query('INSERT INTO documents (id, company_id, filename, detected_mime_type, byte_size, storage_key, sha256, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [documentId, companyA, 'extract.pdf', 'application/pdf', 1, `${companyA}/extract`, 'hash-extract', 'AVAILABLE']);
+    const procurementDocumentId = (await owner.query<{ id: string }>('INSERT INTO procurement_documents(company_id,uploader_user_id,document_id,filename,document_type) VALUES($1,$2,$3,$4,$5) RETURNING id', [companyA, userA, documentId, 'extract.pdf', 'OTHER'])).rows[0].id;
+
+    const noPermission = await requestAs(cookie, 'POST', `/api/v1/procurement-documents/${procurementDocumentId}/extract`, companyA, { lines: [] });
+    expect(noPermission.statusCode).toBe(403);
+
+    const permission = await owner.query<{ id: string }>('SELECT id FROM "Permission" WHERE code=$1', ['procurement_document.extract']);
+    const role = await owner.query<{ id: string }>('SELECT id FROM "Role" WHERE company_id=$1 AND code=$2', [companyA, 'partner-user']);
+    await owner.query('INSERT INTO "RolePermission"(company_id,role_id,permission_id) VALUES($1,$2,$3)', [companyA, role.rows[0].id, permission.rows[0].id]);
+
+    const allowed = await requestAs(cookie, 'POST', `/api/v1/procurement-documents/${procurementDocumentId}/extract`, companyA, { lines: [] });
+    expect(allowed.statusCode).toBe(201);
   });
 
   it('records tenant and pre-tenant audit events without storing secret metadata', async () => {

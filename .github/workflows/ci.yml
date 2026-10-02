@@ -81,29 +81,6 @@ jobs:
     name: Security gate on clean PostgreSQL
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
-        env:
-          POSTGRES_DB: sco_dev
-          POSTGRES_USER: sco_dev
-          POSTGRES_PASSWORD: ci-admin-password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U sco_dev -d sco_dev"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 12
-    env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://sco_dev:ci-admin-password@127.0.0.1:5432/sco_dev
-      RUNTIME_DATABASE_URL: postgresql://sco_runtime:ci-runtime-password@127.0.0.1:5432/sco_dev
-      SCO_INTERNAL_DATABASE_URL: postgresql://sco_internal_executor:ci-internal-password@127.0.0.1:5432/sco_dev
-      RUNTIME_DATABASE_PASSWORD: ci-runtime-password
-      SCO_INTERNAL_DATABASE_PASSWORD: ci-internal-password
-      SESSION_SECRET: ci-only-session-secret-not-for-deployment
-      SCO_DOCUMENT_STORAGE: local
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -111,36 +88,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ci:prepare-db
-      - run: pnpm --filter @sco/api exec vitest run test/integration/security-gate.integration.test.ts
+      - run: node scripts/test/run-with-test-db.mjs corepack pnpm --filter @sco/api exec vitest run test/integration/security-gate.integration.test.ts --no-file-parallelism
 
   postgres-suite:
     name: Full PostgreSQL suite
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
-        env:
-          POSTGRES_DB: sco_dev
-          POSTGRES_USER: sco_dev
-          POSTGRES_PASSWORD: ci-admin-password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U sco_dev -d sco_dev"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 12
-    env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://sco_dev:ci-admin-password@127.0.0.1:5432/sco_dev
-      RUNTIME_DATABASE_URL: postgresql://sco_runtime:ci-runtime-password@127.0.0.1:5432/sco_dev
-      SCO_INTERNAL_DATABASE_URL: postgresql://sco_internal_executor:ci-internal-password@127.0.0.1:5432/sco_dev
-      RUNTIME_DATABASE_PASSWORD: ci-runtime-password
-      SCO_INTERNAL_DATABASE_PASSWORD: ci-internal-password
-      SESSION_SECRET: ci-only-session-secret-not-for-deployment
-      SCO_DOCUMENT_STORAGE: local
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -148,8 +101,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ci:prepare-db
-      - run: pnpm --filter @sco/api test
+      - run: node scripts/test/run-with-test-db.mjs corepack pnpm --filter @sco/api test
 
   recovery-drill:
     name: Encrypted backup and isolated recovery drill

@@ -41,8 +41,9 @@ export class PurposeGuard implements CanActivate {
         action: 'authorization.purpose_denied',
         correlationId: request.correlationId,
         purposeCode: purposeRequirement.purpose,
-        flowSource: purposeRequirement.flow?.source,
-        flowTarget: purposeRequirement.flow?.target,
+        flowSource: purposeRequirement.kind === 'CROSS_PURPOSE_FLOW' ? purposeRequirement.flow.source : undefined,
+        flowTarget: purposeRequirement.kind === 'CROSS_PURPOSE_FLOW' ? purposeRequirement.flow.target : undefined,
+        flowCpfId: purposeRequirement.kind === 'CROSS_PURPOSE_FLOW' ? purposeRequirement.flow.id : undefined,
         authorizationDecision: 'DENIED',
       });
       throw forbidden();
@@ -60,8 +61,9 @@ export class PurposeGuard implements CanActivate {
       action: 'authorization.purpose_allowed',
       correlationId: request.correlationId,
       purposeCode: requirement.purpose,
-      flowSource: requirement.flow?.source,
-      flowTarget: requirement.flow?.target,
+      flowSource: requirement.kind === 'CROSS_PURPOSE_FLOW' ? requirement.flow.source : undefined,
+      flowTarget: requirement.kind === 'CROSS_PURPOSE_FLOW' ? requirement.flow.target : undefined,
+      flowCpfId: requirement.kind === 'CROSS_PURPOSE_FLOW' ? requirement.flow.id : undefined,
       authorizationDecision: 'ALLOWED',
     });
     return true;

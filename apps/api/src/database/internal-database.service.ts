@@ -18,6 +18,12 @@ export class InternalDatabaseService implements OnModuleDestroy {
   poolStats() { return { total: this.pool.totalCount, idle: this.pool.idleCount, waiting: this.pool.waitingCount }; }
   async canSelfApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_self_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }
   async canApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }
+  async createProcurementNeed(actor: string, companyId: string, input: { description: string; quantity: number; unitId?: string; needDate: string; projectId?: string; productIdentityId?: string; productCandidateId?: string }, correlationId: string) {
+    return (await this.pool.query(
+      `SELECT * FROM public.internal_procurement_need_create($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [actor, companyId, input.description, input.quantity, input.unitId ?? null, input.needDate, input.projectId ?? null, input.productIdentityId ?? null, input.productCandidateId ?? null, correlationId],
+    )).rows[0];
+  }
   async supplierQuoteDocument(actorId: string, documentId: string) { const result=await this.pool.query<{filename:string;detected_mime_type:string;byte_size:number;storage_key:string}>('SELECT * FROM public.get_supplier_quote_document($1,$2)',[documentId,actorId]); return result.rows[0] ?? null; }
   async createRfq(actor:string, executionItemIds:string[], expiresAt?:string, notes?:string, correlationId?:string) { return (await this.pool.query('SELECT public.internal_rfq_create($1,$2::uuid[],$3,$4,$5) AS id',[actor,executionItemIds,expiresAt??null,notes??null,correlationId??null])).rows[0]; }
   async transitionRfq(actor:string,id:string,next:string,reason?:string,correlationId?:string) { return (await this.pool.query('SELECT * FROM public.internal_rfq_transition($1,$2,$3,$4,$5)',[actor,id,next,reason??null,correlationId??null])).rows[0]; }

@@ -5,6 +5,18 @@ export type CommercialCapability = 'BUYER_PARTNERSHIP' | 'SUPPLIER_PARTNERSHIP';
 
 @Injectable()
 export class MembershipEligibilityService {
+  async hasActivePartnership(client: PoolClient, userId: string, companyId: string, capability: CommercialCapability) {
+    const result = await client.query(
+      `SELECT 1
+       FROM "CompanyMembership" cm
+       JOIN company_partnerships cp ON cp.company_id = cm."companyId" AND cp.type = $3 AND cp.status = 'ACTIVE'
+       WHERE cm."userId" = $1 AND cm."companyId" = $2 AND cm.status = 'ACTIVE'
+       LIMIT 1`,
+      [userId, companyId, capability],
+    );
+    return result.rowCount === 1;
+  }
+
   async hasCapability(client: PoolClient, userId: string, companyId: string, capability: CommercialCapability, permissionCode: string) {
     const result = await client.query(
       `SELECT 1

@@ -4,7 +4,7 @@ import { TenantGuard } from '../../common/tenant/tenant.guard.js';
 import { PartnerCompanyGuard } from '../../common/tenant/partner-company.guard.js';
 import { PermissionGuard } from '../rbac/permission.guard.js';
 import { PurposeGuard } from '../rbac/purpose.guard.js';
-import { PURPOSE } from '../rbac/purpose-registry.js';
+import { PURPOSE_REQUIREMENT } from '../rbac/purpose-registry.js';
 import { RequirePermission } from '../rbac/require-permission.decorator.js';
 import { RequirePurpose } from '../rbac/require-purpose.decorator.js';
 import { Tenant } from '../../common/tenant/tenant.decorator.js';
@@ -18,7 +18,7 @@ export class PartnerVerifyController {
 
   @Get('requests/:requestId/result')
   @RequirePermission('partner_verify.read')
-  @RequirePurpose({ purpose: PURPOSE.VERIFY })
+  @RequirePurpose(PURPOSE_REQUIREMENT.VERIFY)
   getResult(@Tenant() tenant: TenantContext, @Param('requestId') requestId: string) {
     return this.partnerVerify.getResult(tenant, requestId);
   }

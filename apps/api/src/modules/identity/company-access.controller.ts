@@ -6,7 +6,7 @@ import { TenantGuard } from '../../common/tenant/tenant.guard.js';
 import { TenantTransactionService } from '../../database/tenant-transaction.service.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { PurposeGuard } from '../rbac/purpose.guard.js';
-import { PURPOSE } from '../rbac/purpose-registry.js';
+import { PURPOSE_REQUIREMENT } from '../rbac/purpose-registry.js';
 import { RequirePurpose } from '../rbac/require-purpose.decorator.js';
 import { CompaniesService } from './companies.service.js';
 
@@ -19,7 +19,7 @@ export class CompanyAccessController {
   ) {}
 
   @Get('current/me')
-  @RequirePurpose({ purpose: PURPOSE.AUTHORIZATION })
+  @RequirePurpose(PURPOSE_REQUIREMENT.AUTHORIZATION)
   async current(@Tenant() tenant: TenantContext) {
     const company = await this.tenantTransactions.withTenant(tenant.userId, tenant.companyId, (client) =>
       this.companies.findProjection(client, tenant.companyId),

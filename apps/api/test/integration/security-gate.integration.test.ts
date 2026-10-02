@@ -114,6 +114,15 @@ afterAll(async () => {
 });
 
 describe('Security Gate: request → authentication → membership → tenant → RLS', () => {
+  it('invalidates the server-side session on logout and rejects the replayed cookie', async () => {
+    const cookie = await login('partner-a@sco.test');
+    const logout = await app.inject({ method: 'POST', url: '/api/v1/auth/logout', headers: { cookie }, payload: {} });
+    expect(logout.statusCode).toBe(200);
+    const replay = await app.inject({ method: 'GET', url: '/api/v1/auth/context', headers: { cookie } });
+    expect(replay.statusCode).toBe(401);
+    expect(replay.json()).toEqual({ error: { code: 'UNAUTHENTICATED' } });
+  });
+
   it('uses the current migration-defined permission codes', async () => {
     const permissions = await owner.query<{ code: string; description: string }>(
       `SELECT code, description FROM "Permission" WHERE code IN ($1, $2) ORDER BY code`,

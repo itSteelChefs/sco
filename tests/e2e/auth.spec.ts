@@ -37,6 +37,17 @@ test.describe('Partner launch foundation', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
+  test('keeps the Partner session visible and shows an Arabic recovery error when logout fails', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('البريد الإلكتروني').fill(email);
+    await page.getByLabel('كلمة المرور').fill(password);
+    await page.getByRole('button', { name: 'دخول' }).click();
+    await page.route('**/api/v1/auth/logout', (route) => route.fulfill({ status: 500, body: JSON.stringify({ error: { code: 'INTERNAL_ERROR' } }) }));
+    await page.getByRole('button', { name: 'تسجيل الخروج' }).click();
+    await expect(page.getByText('تعذر إنهاء الجلسة بأمان. حاول مرة أخرى.', { exact: true })).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login$/);
+  });
+
   test('redirects an expired browser session safely to login', async ({ page, context }) => {
     await page.goto('/login');
     await page.getByLabel('البريد الإلكتروني').fill(email);
@@ -82,5 +93,16 @@ test.describe('Operations launch foundation', () => {
     await page.getByRole('button', { name: 'دخول' }).click();
     await page.getByRole('button', { name: 'تسجيل الخروج' }).click();
     await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test('keeps the Operations session visible when logout has a network failure', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('البريد الإلكتروني').fill(email);
+    await page.getByLabel('كلمة المرور').fill(password);
+    await page.getByRole('button', { name: 'دخول' }).click();
+    await page.route('**/api/v1/auth/logout', (route) => route.abort('failed'));
+    await page.getByRole('button', { name: 'تسجيل الخروج' }).click();
+    await expect(page.getByText('تعذر إنهاء الجلسة بأمان. حاول مرة أخرى.', { exact: true })).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login$/);
   });
 });

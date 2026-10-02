@@ -27,6 +27,7 @@ export class AuditService {
       JSON.stringify(safeMetadata(event.metadata)),
       event.correlationId ?? null,
       event.purposeCode ?? null,
+      event.flowCpfId ?? null,
       event.flowSource ?? null,
       event.flowTarget ?? null,
       event.authorizationDecision ?? null,
@@ -35,8 +36,8 @@ export class AuditService {
 
   private insert(client: PoolClient, event: AuditEvent): Promise<unknown> {
     return client.query(
-      `INSERT INTO audit_logs (actor_user_id, company_id, scope, action, entity_type, entity_id, metadata, correlation_id, purpose_code, flow_source, flow_target, authorization_decision)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)`,
+      `INSERT INTO audit_logs (actor_user_id, company_id, scope, action, entity_type, entity_id, metadata, correlation_id, purpose_code, flow_cpf_id, flow_source, flow_target, authorization_decision)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12,$13)`,
       this.values(event),
     );
   }

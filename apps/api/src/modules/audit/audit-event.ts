@@ -9,6 +9,7 @@ export type AuditEvent = {
   metadata?: Record<string, unknown>;
   correlationId?: string;
   purposeCode?: string;
+  flowCpfId?: string;
   flowSource?: string;
   flowTarget?: string;
   authorizationDecision?: 'ALLOWED' | 'DENIED';

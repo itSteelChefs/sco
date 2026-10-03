@@ -358,11 +358,8 @@ describe('Security Gate: request → authentication → membership → tenant �
     expect(JSON.stringify(rows.rows)).not.toContain('must-not-persist');
   });
 
-  it('does not authorize a Company A document for Company B', async () => {
-    const documentId = '30000000-0000-4000-8000-000000000001';
-    await owner.query('DELETE FROM documents WHERE id = $1', [documentId]);
-    await owner.query('INSERT INTO documents (id, company_id, filename, detected_mime_type, byte_size, storage_key, sha256, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [documentId, companyA, 'private.pdf', 'application/pdf', 1, `${companyA}/private`, 'hash-a', 'AVAILABLE']);
+  it('does not expose a document delivery authorization abstraction', () => {
     const documents = app.get(DocumentsService);
-    await expect(documents.authorizeDownload(documentId, { userId: userA, companyId: companyB, membershipId: '00000000-0000-4000-8000-000000000000', status: 'ACTIVE' })).rejects.toMatchObject({ response: { error: { code: 'FORBIDDEN' } } });
+    expect(Object.getPrototypeOf(documents)).not.toHaveProperty('authorizeDownload');
   });
 });

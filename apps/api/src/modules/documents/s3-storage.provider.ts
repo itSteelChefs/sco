@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
-import type { AuthorizedDownload, StagedObject, StorageProvider } from './storage-provider.js';
+import type { StagedObject, StorageProvider } from './storage-provider.js';
 import { MetricsService } from '../../observability/metrics.service.js';
 import { operationalLogger } from '../../observability/telemetry.js';
 
@@ -29,10 +29,6 @@ export class S3StorageProvider implements StorageProvider {
       byteSize: input.content.byteLength,
       sha256: createHash('sha256').update(input.content).digest('hex'),
     };
-  }
-
-  async authorizeDownload(input: string): Promise<AuthorizedDownload> {
-    return { storageKey: storageKey(input) };
   }
 
   async readPrivate(input: string): Promise<Uint8Array> {

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { Injectable } from '@nestjs/common';
-import type { AuthorizedDownload, StagedObject, StorageProvider } from './storage-provider.js';
+import type { StagedObject, StorageProvider } from './storage-provider.js';
 
 @Injectable()
 export class DevelopmentStorageProvider implements StorageProvider {
@@ -15,14 +15,10 @@ export class DevelopmentStorageProvider implements StorageProvider {
     await writeFile(target, input.content, { flag: 'wx' });
     return { storageKey: safeKey, byteSize: input.content.byteLength, sha256: createHash('sha256').update(input.content).digest('hex') };
   }
-  async authorizeDownload(storageKey: string): Promise<AuthorizedDownload> {
+  async readPrivate(storageKey: string): Promise<Uint8Array> {
     const safeKey = storageKey.split('/').map((segment) => basename(segment)).join('/');
     const absolutePath = resolve(this.root, safeKey);
     if (!absolutePath.startsWith(`${this.root}/`)) throw new Error('INVALID_STORAGE_KEY');
-    return { storageKey: safeKey };
-  }
-  async readPrivate(storageKey: string): Promise<Uint8Array> {
-    const authorized = await this.authorizeDownload(storageKey);
-    return readFile(resolve(this.root, authorized.storageKey));
+    return readFile(absolutePath);
   }
 }

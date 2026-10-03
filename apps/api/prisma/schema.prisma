@@ -675,6 +675,82 @@ model DisclosureRevealAuthorityEvent {
  @@map("disclosure_reveal_authority_events")
 }
 
+model DocumentPolicyRevision {
+ id                     String                          @id @default(uuid()) @db.Uuid
+ documentId             String                          @map("document_id") @db.Uuid
+ companyId              String                          @map("company_id") @db.Uuid
+ ownerCompanyId         String                          @map("owner_company_id") @db.Uuid
+ custodianCompanyId     String?                         @map("custodian_company_id") @db.Uuid
+ uploaderUserId         String?                         @map("uploader_user_id") @db.Uuid
+ revisionNumber         Int                             @map("revision_number")
+ supersedesRevisionId   String?                         @unique @map("supersedes_revision_id") @db.Uuid
+ accessScope            String                          @map("access_scope")
+ sensitivity            DocumentPolicySensitivity
+ primaryPurposeCode     String?                         @map("primary_purpose_code")
+ purposeBindingReference String?                        @map("purpose_binding_reference") @db.Uuid
+ disclosurePosture      DocumentPolicyDisclosurePosture @default(HIDDEN) @map("disclosure_posture")
+ lifecycleState         DocumentPolicyLifecycleState    @default(PENDING_POLICY) @map("lifecycle_state")
+ retentionMetadataState DocumentRetentionMetadataState  @default(UNSET) @map("retention_metadata_state")
+ retentionBasisReference String?                        @map("retention_basis_reference")
+ sourceReference        String?                         @map("source_reference")
+ createdBy              String?                         @map("created_by") @db.Uuid
+ createdAt              DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+ @@unique([documentId, revisionNumber])
+ @@index([documentId, revisionNumber(sort: Desc)])
+ @@map("document_policy_revisions")
+}
+
+model DocumentLineageEdge {
+ id                      String                  @id @default(uuid()) @db.Uuid
+ companyId               String                  @map("company_id") @db.Uuid
+ sourceDocumentId        String                  @map("source_document_id") @db.Uuid
+ derivedDocumentId       String                  @map("derived_document_id") @db.Uuid
+ relation                DocumentLineageRelation @default(DERIVATIVE)
+ sourcePolicyRevisionId  String                  @map("source_policy_revision_id") @db.Uuid
+ derivedPolicyRevisionId String                  @map("derived_policy_revision_id") @db.Uuid
+ createdBy               String                  @map("created_by") @db.Uuid
+ createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+ @@unique([sourceDocumentId, derivedDocumentId, relation])
+ @@index([sourceDocumentId])
+ @@index([derivedDocumentId])
+ @@map("document_lineage_edges")
+}
+
+model DocumentPolicyEvent {
+ id               String                   @id @default(uuid()) @db.Uuid
+ companyId        String                   @map("company_id") @db.Uuid
+ documentId       String                   @map("document_id") @db.Uuid
+ policyRevisionId String?                  @map("policy_revision_id") @db.Uuid
+ lineageEdgeId    String?                  @map("lineage_edge_id") @db.Uuid
+ actorUserId      String?                  @map("actor_user_id") @db.Uuid
+ action           String
+ operation        DocumentPolicyOperation?
+ reasonCode       String?                  @map("reason_code")
+ createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+
+ @@map("document_policy_events")
+}
+
+model DocumentPolicyPurposeDecision {
+ id                    String    @id @default(uuid()) @db.Uuid
+ actorUserId           String    @map("actor_user_id") @db.Uuid
+ companyId             String    @map("company_id") @db.Uuid
+ documentId            String    @map("document_id") @db.Uuid
+ relatedDocumentId     String?   @map("related_document_id") @db.Uuid
+ operation             String
+ purposeCode           String    @map("purpose_code")
+ flowCpfId             String?   @map("flow_cpf_id")
+ issuedAt              DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+ expiresAt             DateTime  @map("expires_at") @db.Timestamptz(6)
+ consumedAt            DateTime? @map("consumed_at") @db.Timestamptz(6)
+ consumedBackendPid    Int?      @map("consumed_backend_pid")
+ consumedTransactionId BigInt?   @map("consumed_transaction_id")
+
+ @@map("document_policy_purpose_decisions")
+}
+
 enum DisclosureIdentityClass {
  ORGANIZATION
  SUPPLIER_SOURCE
@@ -698,6 +774,42 @@ enum DisclosureRevealOperation {
 enum DisclosureRevealLevel {
  REAL
  MINIMIZED
+}
+
+enum DocumentPolicySensitivity {
+ UNCLASSIFIED
+ CONFIDENTIAL
+ RESTRICTED
+}
+
+enum DocumentPolicyDisclosurePosture {
+ HIDDEN
+ ALIAS
+}
+
+enum DocumentPolicyLifecycleState {
+ PENDING_POLICY
+ ACTIVE
+}
+
+enum DocumentRetentionMetadataState {
+ UNSET
+ HOLD
+}
+
+enum DocumentLineageRelation {
+ DERIVATIVE
+}
+
+enum DocumentPolicyOperation {
+ METADATA_READ
+ METADATA_WRITE
+ CONTENT_READ
+ PROCESS
+ DOWNLOAD
+ EXPORT
+ EXTERNAL_DISCLOSURE
+ RETENTION_DISPOSAL
 }
 
 enum DisclosureAliasLifecycleStatus {

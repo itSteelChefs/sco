@@ -1,6 +1,8 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 
+type DocumentPolicyPurposeOperation = 'POLICY_REVISE' | 'LINEAGE_CREATE';
+
 @Injectable()
 export class PurposeDecisionAuthorityService implements OnModuleDestroy {
   private readonly pool: Pool;
@@ -40,6 +42,37 @@ export class PurposeDecisionAuthorityService implements OnModuleDestroy {
     await this.pool.query(
       'SELECT public.consume_disclosure_fixture_purpose_decision($1,$2,$3,$4,$5,$6,$7::bigint)',
       [decisionId, actorUserId, companyId, resourceId, subjectReference, backendPid, transactionId],
+    );
+  }
+
+  async issueDocumentPolicyMutation(
+    actorUserId: string,
+    companyId: string,
+    documentId: string,
+    relatedDocumentId: string | null,
+    operation: DocumentPolicyPurposeOperation,
+  ): Promise<string> {
+    const result = await this.pool.query<{ id: string }>(
+      'SELECT public.issue_document_policy_purpose_decision($1,$2,$3,$4,$5) AS id',
+      [actorUserId, companyId, documentId, relatedDocumentId, operation],
+    );
+    if (!result.rows[0]?.id) throw new Error('Document policy purpose decision issuance failed.');
+    return result.rows[0].id;
+  }
+
+  async consumeDocumentPolicyMutation(
+    decisionId: string,
+    actorUserId: string,
+    companyId: string,
+    documentId: string,
+    relatedDocumentId: string | null,
+    operation: DocumentPolicyPurposeOperation,
+    backendPid: number,
+    transactionId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      'SELECT public.consume_document_policy_purpose_decision($1,$2,$3,$4,$5,$6,$7,$8::bigint)',
+      [decisionId, actorUserId, companyId, documentId, relatedDocumentId, operation, backendPid, transactionId],
     );
   }
 

@@ -15,6 +15,15 @@ export class InternalDatabaseService implements OnModuleDestroy {
   }
   async onModuleDestroy() { await this.pool.end(); }
   async ping(): Promise<void> { await this.pool.query('SELECT 1'); }
+  async createDisclosureAlias(actor: string, input: { ownerCompanyId: string; recipientCompanyId: string; recipientContext: string; resourceType: string; resourceId: string; identityClass: string; subjectReference: string; alias: string }) {
+    return (await this.pool.query<{ id: string }>(
+      'SELECT public.internal_disclosure_alias_create($1,$2,$3,$4,$5,$6,$7,$8,$9) AS id',
+      [actor, input.ownerCompanyId, input.recipientCompanyId, input.recipientContext, input.resourceType, input.resourceId, input.identityClass, input.subjectReference, input.alias],
+    )).rows[0];
+  }
+  async retireDisclosureAlias(actor: string, aliasId: string): Promise<void> {
+    await this.pool.query('SELECT public.internal_disclosure_alias_retire($1,$2)', [actor, aliasId]);
+  }
   poolStats() { return { total: this.pool.totalCount, idle: this.pool.idleCount, waiting: this.pool.waitingCount }; }
   async canSelfApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_self_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }
   async canApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }

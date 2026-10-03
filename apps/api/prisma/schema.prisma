@@ -591,6 +591,45 @@ enum PurchaseSourceStatus {
  RETIRED
 }
 
+model DisclosureAlias {
+ id               String                       @id @default(uuid()) @db.Uuid
+ alias            String                       @unique
+ ownerCompanyId   String                       @map("owner_company_id") @db.Uuid
+ recipientCompanyId String                     @map("recipient_company_id") @db.Uuid
+ recipientContext DisclosureRecipientContext   @map("recipient_context")
+ resourceType     String                       @map("resource_type")
+ resourceId       String                       @map("resource_id") @db.Uuid
+ identityClass    DisclosureIdentityClass      @map("identity_class")
+ subjectReference String                       @map("subject_reference") @db.Uuid
+ status           DisclosureAliasLifecycleStatus @default(ACTIVE)
+ createdBy        String                       @map("created_by") @db.Uuid
+ createdAt        DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+ retiredBy        String?                      @map("retired_by") @db.Uuid
+ retiredAt        DateTime?                    @map("retired_at") @db.Timestamptz(6)
+
+ @@map("disclosure_aliases")
+}
+
+enum DisclosureIdentityClass {
+ ORGANIZATION
+ SUPPLIER_SOURCE
+ PERSON_CONTACT
+ PROJECT_SITE
+ EMBEDDED_IDENTITY_RISK
+}
+
+enum DisclosureRecipientContext {
+ SAME_COMPANY_INTERNAL
+ PARTNER
+ SCO_INTERNAL
+ CROSS_PARTY_EXTERNAL
+}
+
+enum DisclosureAliasLifecycleStatus {
+ ACTIVE
+ RETIRED
+}
+
 enum RFQStatus {
   DRAFT
   READY_TO_SEND

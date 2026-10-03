@@ -27,6 +27,22 @@ export class PurposeDecisionAuthorityService implements OnModuleDestroy {
     );
   }
 
+  async issueDisclosureFixtureRead(actorUserId: string, companyId: string, resourceId: string, subjectReference: string): Promise<string> {
+    const result = await this.pool.query<{ id: string }>(
+      'SELECT public.issue_disclosure_fixture_purpose_decision($1,$2,$3,$4) AS id',
+      [actorUserId, companyId, resourceId, subjectReference],
+    );
+    if (!result.rows[0]?.id) throw new Error('Disclosure purpose decision issuance failed.');
+    return result.rows[0].id;
+  }
+
+  async consumeDisclosureFixtureRead(decisionId: string, actorUserId: string, companyId: string, resourceId: string, subjectReference: string, backendPid: number, transactionId: string): Promise<void> {
+    await this.pool.query(
+      'SELECT public.consume_disclosure_fixture_purpose_decision($1,$2,$3,$4,$5,$6,$7::bigint)',
+      [decisionId, actorUserId, companyId, resourceId, subjectReference, backendPid, transactionId],
+    );
+  }
+
   async onModuleDestroy() {
     await this.pool.end();
   }

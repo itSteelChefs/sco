@@ -610,6 +610,71 @@ model DisclosureAlias {
  @@map("disclosure_aliases")
 }
 
+model DisclosureRevealCase {
+ code               String                    @id
+ purposeCode        String                    @map("purpose_code")
+ flowCpfId          String                    @map("flow_cpf_id")
+ recipientContext   DisclosureRecipientContext @map("recipient_context")
+ resourceType       String                    @map("resource_type")
+ identityClass      DisclosureIdentityClass   @map("identity_class")
+ operation          DisclosureRevealOperation
+ disclosureLevel    DisclosureRevealLevel     @map("disclosure_level")
+ requiredPermission String                    @map("required_permission")
+ maxDurationSeconds Int                       @map("max_duration_seconds")
+ active             Boolean                   @default(true)
+ createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+ @@map("disclosure_reveal_cases")
+}
+
+model DisclosureRevealAuthorityDecision {
+ id                    String                    @id @default(uuid()) @db.Uuid
+ actorUserId           String                    @map("actor_user_id") @db.Uuid
+ ownerCompanyId        String                    @map("owner_company_id") @db.Uuid
+ recipientCompanyId    String                    @map("recipient_company_id") @db.Uuid
+ recipientContext      DisclosureRecipientContext @map("recipient_context")
+ resourceType          String                    @map("resource_type")
+ resourceId            String                    @map("resource_id") @db.Uuid
+ identityClass         DisclosureIdentityClass   @map("identity_class")
+ subjectReference      String                    @map("subject_reference") @db.Uuid
+ purposeCode           String                    @map("purpose_code")
+ flowCpfId             String                    @map("flow_cpf_id")
+ operation             DisclosureRevealOperation
+ disclosureLevel        DisclosureRevealLevel     @map("disclosure_level")
+ requiredPermission     String                    @map("required_permission")
+ disclosureCaseCode    String                    @map("disclosure_case_code")
+ issuedAt              DateTime                  @default(now()) @map("issued_at") @db.Timestamptz(6)
+ expiresAt             DateTime                  @map("expires_at") @db.Timestamptz(6)
+ consumedAt            DateTime?                 @map("consumed_at") @db.Timestamptz(6)
+ consumedBackendPid    Int?                      @map("consumed_backend_pid")
+ consumedTransactionId BigInt?                   @map("consumed_transaction_id")
+
+ @@index([actorUserId, ownerCompanyId, recipientCompanyId, recipientContext, resourceType, resourceId, identityClass, subjectReference, disclosureCaseCode])
+ @@map("disclosure_reveal_authority_decisions")
+}
+
+model DisclosureRevealAuthorityEvent {
+ id                   String                    @id @default(uuid()) @db.Uuid
+ decisionId           String                    @map("decision_id") @db.Uuid
+ eventType            String                    @map("event_type")
+ actorUserId          String                    @map("actor_user_id") @db.Uuid
+ authorizationCompanyId String                  @map("authorization_company_id") @db.Uuid
+ recipientContext     DisclosureRecipientContext @map("recipient_context")
+ purposeCode          String                    @map("purpose_code")
+ flowCpfId            String                    @map("flow_cpf_id")
+ operation            DisclosureRevealOperation
+ disclosureLevel       DisclosureRevealLevel     @map("disclosure_level")
+ requiredPermission    String                    @map("required_permission")
+ disclosureCaseCode   String                    @map("disclosure_case_code")
+ resourceType         String                    @map("resource_type")
+ resourceId           String                    @map("resource_id") @db.Uuid
+ identityClass        DisclosureIdentityClass   @map("identity_class")
+ subjectReference     String                    @map("subject_reference") @db.Uuid
+ recordedAt           DateTime                  @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+ @@map("disclosure_reveal_authority_events")
+}
+
 enum DisclosureIdentityClass {
  ORGANIZATION
  SUPPLIER_SOURCE
@@ -623,6 +688,16 @@ enum DisclosureRecipientContext {
  PARTNER
  SCO_INTERNAL
  CROSS_PARTY_EXTERNAL
+}
+
+enum DisclosureRevealOperation {
+ PRESENT_REAL
+ PRESENT_MINIMIZED
+}
+
+enum DisclosureRevealLevel {
+ REAL
+ MINIMIZED
 }
 
 enum DisclosureAliasLifecycleStatus {

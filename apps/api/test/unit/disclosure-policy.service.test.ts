@@ -46,6 +46,14 @@ describe('DisclosurePolicyService', () => {
     expect(decision).not.toHaveProperty('requestedDisclosureLevel');
   });
 
+  it('keeps REAL inactive when an operation requests it without a server-issued authority', () => {
+    expect(policy.decide(request({ operation: 'PRESENT_REAL' }))).toMatchObject({
+      appliedLevel: 'HIDDEN',
+      reasonCode: 'DISCLOSURE_POLICY_UNSUPPORTED',
+      requiresAliasResolution: false,
+    });
+  });
+
   it('hides uncontrolled embedded identity instead of claiming redaction', () => {
     expect(policy.decide(request({
       embeddedIdentityClassification: EMBEDDED_IDENTITY_CLASSIFICATION.CLASSIFIED_KNOWN_RISK,

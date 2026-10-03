@@ -41,7 +41,7 @@ export const EMBEDDED_IDENTITY_CLASSIFICATION = {
 export type EmbeddedIdentityClassification = (typeof EMBEDDED_IDENTITY_CLASSIFICATION)[keyof typeof EMBEDDED_IDENTITY_CLASSIFICATION];
 
 export type DisclosureResourceType = 'DISCLOSURE_FIXTURE';
-export type DisclosureOperation = 'PRESENT_ALIAS' | 'PRESENT_MINIMIZED';
+export type DisclosureOperation = 'PRESENT_ALIAS' | 'PRESENT_MINIMIZED' | 'PRESENT_REAL';
 
 export type DisclosureRequest = {
   actorUserId: string;

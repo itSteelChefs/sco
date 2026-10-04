@@ -104,6 +104,63 @@ model CompanyMembership {
   @@index([companyId])
 }
 
+model ServiceEntitlement {
+  id         String                  @id @default(uuid()) @db.Uuid
+  companyId  String                  @map("company_id") @db.Uuid
+  serviceCode String                 @map("service_code")
+  state      ServiceEntitlementState @default(ACTIVE)
+  changedBy  String                  @map("changed_by") @db.Uuid
+  changedAt  DateTime                @default(now()) @map("changed_at") @db.Timestamptz(6)
+  createdAt  DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([companyId, serviceCode])
+  @@map("service_entitlements")
+}
+
+model ServiceAccessGrant {
+  id                   String    @id @default(uuid()) @db.Uuid
+  actorUserId          String    @map("actor_user_id") @db.Uuid
+  actorScoCompanyId    String    @map("actor_sco_company_id") @db.Uuid
+  grantingScoCompanyId String    @map("granting_sco_company_id") @db.Uuid
+  targetCompanyId      String    @map("target_company_id") @db.Uuid
+  entitlementId        String    @map("entitlement_id") @db.Uuid
+  serviceCode          String    @map("service_code")
+  purposeCode          String    @map("purpose_code")
+  idempotencyKey       String    @map("idempotency_key")
+  expiresAt            DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt            DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy            String?   @map("revoked_by") @db.Uuid
+  revocationReason     String?   @map("revocation_reason")
+  grantedBy            String    @map("granted_by") @db.Uuid
+  correlationId        String?   @map("correlation_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([grantingScoCompanyId, idempotencyKey])
+  @@index([actorUserId, targetCompanyId, serviceCode, expiresAt])
+  @@map("service_access_grants")
+}
+
+model ServiceAccessDecision {
+  id                   String    @id @default(uuid()) @db.Uuid
+  grantId              String    @map("grant_id") @db.Uuid
+  actorUserId          String    @map("actor_user_id") @db.Uuid
+  authorizationCompanyId String  @map("authorization_company_id") @db.Uuid
+  targetCompanyId      String    @map("target_company_id") @db.Uuid
+  serviceCode          String    @map("service_code")
+  purposeCode          String    @map("purpose_code")
+  operation            String
+  resourceContext      String    @map("resource_context")
+  issuedAt             DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt            DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt           DateTime? @map("consumed_at") @db.Timestamptz(6)
+  executedAt           DateTime? @map("executed_at") @db.Timestamptz(6)
+  consumedBackendPid   Int?      @map("consumed_backend_pid")
+  consumedTransactionId BigInt?  @map("consumed_transaction_id")
+
+  @@index([expiresAt])
+  @@map("service_access_decisions")
+}
+
 model ProductCategory {
   id String @id @default(uuid()) @db.Uuid
   parentId String? @map("parent_id") @db.Uuid
@@ -422,6 +479,12 @@ enum CompanyType {
 enum MembershipStatus {
   ACTIVE
   SUSPENDED
+  REVOKED
+}
+
+enum ServiceEntitlementState {
+  ACTIVE
+  DISABLED
   REVOKED
 }
 

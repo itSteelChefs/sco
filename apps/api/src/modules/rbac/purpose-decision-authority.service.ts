@@ -121,6 +121,35 @@ export class PurposeDecisionAuthorityService implements OnModuleDestroy {
     );
   }
 
+  async issueServiceAccessOperation(
+    actorUserId: string,
+    targetCompanyId: string,
+    serviceCode: string,
+    resourceContext: string,
+  ): Promise<string> {
+    const result = await this.pool.query<{ id: string }>(
+      'SELECT public.issue_service_access_decision($1, $2, $3, $4) AS id',
+      [actorUserId, targetCompanyId, serviceCode, resourceContext],
+    );
+    if (!result.rows[0]?.id) throw new Error('Service access decision issuance failed.');
+    return result.rows[0].id;
+  }
+
+  async consumeServiceAccessOperation(
+    decisionId: string,
+    actorUserId: string,
+    targetCompanyId: string,
+    serviceCode: string,
+    resourceContext: string,
+    backendPid: number,
+    transactionId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      'SELECT public.consume_service_access_decision($1, $2, $3, $4, $5, $6, $7::bigint)',
+      [decisionId, actorUserId, targetCompanyId, serviceCode, resourceContext, backendPid, transactionId],
+    );
+  }
+
   async onModuleDestroy() {
     await this.pool.end();
   }

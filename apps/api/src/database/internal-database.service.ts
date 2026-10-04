@@ -17,6 +17,18 @@ export type ProcurementIntelligenceRunInput = {
   requestKey: string;
   correlationId?: string;
 };
+export type ServiceEntitlementState = 'ACTIVE' | 'DISABLED' | 'REVOKED';
+export type ServiceAccessTransactionBinding = {
+  backendPid: number;
+  transactionId: string;
+};
+export type ServiceAccessAuthorizationInput = {
+  actorUserId: string;
+  targetCompanyId: string;
+  serviceCode: string;
+  resourceContext: string;
+  correlationId?: string;
+};
 @Injectable()
 export class InternalDatabaseService implements OnModuleDestroy {
   private readonly pool: Pool;
@@ -55,6 +67,79 @@ export class InternalDatabaseService implements OnModuleDestroy {
       client.release();
     }
   }
+
+    async setServiceEntitlement(
+      actorUserId: string,
+      companyId: string,
+      serviceCode: string,
+      state: ServiceEntitlementState,
+    ): Promise<string> {
+      const result = await this.pool.query<{ id: string }>(
+        'SELECT public.internal_service_entitlement_set($1, $2, $3, $4::"ServiceEntitlementState") AS id',
+        [actorUserId, companyId, serviceCode, state],
+      );
+      if (!result.rows[0]?.id) throw new Error('Service entitlement gateway did not return an identifier.');
+      return result.rows[0].id;
+    }
+    async createServiceAccessGrant(
+      issuerUserId: string,
+      actorUserId: string,
+      targetCompanyId: string,
+      serviceCode: string,
+      expiresAt: string,
+      idempotencyKey: string,
+      correlationId?: string,
+    ): Promise<string> {
+      const result = await this.pool.query<{ id: string }>(
+        'SELECT public.internal_service_access_grant_create($1, $2, $3, $4, $5::timestamptz, $6, $7) AS id',
+        [issuerUserId, actorUserId, targetCompanyId, serviceCode, expiresAt, idempotencyKey, correlationId ?? null],
+      );
+      if (!result.rows[0]?.id) throw new Error('Service access grant gateway did not return an identifier.');
+      return result.rows[0].id;
+    }
+    async revokeServiceAccessGrant(
+      issuerUserId: string,
+      grantId: string,
+      reason: string,
+      correlationId?: string,
+    ): Promise<void> {
+      await this.pool.query(
+        'SELECT public.internal_service_access_grant_revoke($1, $2, $3, $4)',
+        [issuerUserId, grantId, reason, correlationId ?? null],
+      );
+    }
+    async authorizeServiceAccess(
+      input: ServiceAccessAuthorizationInput,
+      consume: (binding: ServiceAccessTransactionBinding) => Promise<string>,
+    ): Promise<string> {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const binding = await this.serviceAccessTransactionBinding(client);
+        const decisionId = await consume(binding);
+        const result = await client.query<{ id: string }>(
+          'SELECT public.internal_service_access_authorize($1, $2, $3, $4, $5, $6) AS id',
+          [
+            input.actorUserId,
+            input.targetCompanyId,
+            input.serviceCode,
+            input.resourceContext,
+            decisionId,
+            input.correlationId ?? null,
+          ],
+        );
+        const row = result.rows[0];
+        if (!row?.id) throw new Error('Service access authorization gateway did not return an identifier.');
+        await client.query('COMMIT');
+        return row.id;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+
+  }
   private async procurementIntelligenceTransactionBinding(client: PoolClient): Promise<ProcurementIntelligenceTransactionBinding> {
     const result = await client.query<{ backend_pid: number; transaction_id: string }>(
       'SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id',
@@ -62,6 +147,17 @@ export class InternalDatabaseService implements OnModuleDestroy {
     const row = result.rows[0];
     if (!row) throw new Error('Unable to bind Procurement Intelligence transaction authority.');
     return { backendPid: row.backend_pid, transactionId: row.transaction_id };
+  }
+  private async serviceAccessTransactionBinding(client: PoolClient): Promise<ServiceAccessTransactionBinding> {
+    const result = await client.query<{ backend_pid: number; transaction_id: string }>(
+      'SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id',
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error('Unable to bind Service Access transaction authority.');
+    return {
+      backendPid: row.backend_pid,
+      transactionId: row.transaction_id,
+    };
   }
   async createDisclosureAlias(actor: string, input: { ownerCompanyId: string; recipientCompanyId: string; recipientContext: string; resourceType: string; resourceId: string; identityClass: string; subjectReference: string; alias: string }) {
     return (await this.pool.query<{ id: string }>(

@@ -18,6 +18,7 @@ import { MetricsController } from './observability/metrics.controller.js';
 import { DisclosureModule } from './modules/disclosure/disclosure.module.js';
 import { ProcurementIntelligenceModule } from './modules/procurement-intelligence/procurement-intelligence.module.js';
 import { ServiceAccessModule } from './modules/service-access/service-access.module.js';
+import { WorkspaceModule } from './modules/workspaces/workspace.module.js';
 
-@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule, DisclosureModule, ProcurementIntelligenceModule, ServiceAccessModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
+@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule, DisclosureModule, ProcurementIntelligenceModule, ServiceAccessModule, WorkspaceModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
 export class AppModule implements NestModule { configure(consumer: MiddlewareConsumer) { consumer.apply(correlationIdMiddleware).forRoutes('*'); } }

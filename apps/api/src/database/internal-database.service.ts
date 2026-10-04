@@ -29,6 +29,12 @@ export type ServiceAccessAuthorizationInput = {
   resourceContext: string;
   correlationId?: string;
 };
+export type ServiceAccessWorkspaceSummary = {
+  id: string;
+  displayName: string;
+  state: string;
+  version: number;
+};
 @Injectable()
 export class InternalDatabaseService implements OnModuleDestroy {
   private readonly pool: Pool;
@@ -138,7 +144,47 @@ export class InternalDatabaseService implements OnModuleDestroy {
       } finally {
         client.release();
       }
-
+    }
+  async getServiceAccessWorkspace(
+    input: ServiceAccessAuthorizationInput,
+    consume: (binding: ServiceAccessTransactionBinding) => Promise<string>,
+  ): Promise<ServiceAccessWorkspaceSummary> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const binding = await this.serviceAccessTransactionBinding(client);
+      const decisionId = await consume(binding);
+      const result = await client.query<{
+        workspace_id: string;
+        display_name: string;
+        state: string;
+        version: number;
+      }>(
+        'SELECT * FROM public.internal_partner_workspace_service_access_summary($1, $2, $3, $4, $5, $6)',
+        [
+          input.actorUserId,
+          input.targetCompanyId,
+          input.serviceCode,
+          input.resourceContext,
+          decisionId,
+          input.correlationId ?? null,
+        ],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('Service Access Workspace gateway did not return a result.');
+      await client.query('COMMIT');
+      return {
+        id: row.workspace_id,
+        displayName: row.display_name,
+        state: row.state,
+        version: row.version,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   private async procurementIntelligenceTransactionBinding(client: PoolClient): Promise<ProcurementIntelligenceTransactionBinding> {
     const result = await client.query<{ backend_pid: number; transaction_id: string }>(

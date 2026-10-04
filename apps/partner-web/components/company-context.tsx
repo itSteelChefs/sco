@@ -1,6 +1,6 @@
 'use client';
 
-import { type ActiveCompany, ApiClientError } from '@sco/contracts';
+import { type ActiveCompany, type PartnerWorkspace, ApiClientError } from '@sco/contracts';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
@@ -12,6 +12,7 @@ export function PartnerContext() {
   const [selected, setSelected] = useState('');
   const [error, setError] = useState<string>();
   const [allowed, setAllowed] = useState(false);
+  const [workspace, setWorkspace] = useState<PartnerWorkspace | null>();
 
   async function load() {
     setError(undefined);
@@ -32,9 +33,16 @@ export function PartnerContext() {
   useEffect(() => {
     if (!selected) return;
     setAllowed(false);
-    void api.partner(selected).then(() => setAllowed(true)).catch((failure) => {
-      setError(failure instanceof ApiClientError && failure.status === 403 ? 'لا تملك صلاحية الوصول إلى بوابة الشريك لهذه الشركة.' : 'تعذر التحقق من صلاحية الوصول.');
-    });
+    setWorkspace(undefined);
+    void api.partner(selected)
+      .then(() => api.partnerWorkspace(selected))
+      .then((currentWorkspace) => {
+        setAllowed(true);
+        setWorkspace(currentWorkspace);
+      })
+      .catch((failure) => {
+        setError(failure instanceof ApiClientError && failure.status === 403 ? 'لا تملك صلاحية الوصول إلى بوابة الشريك لهذه الشركة.' : 'تعذر التحقق من صلاحية الوصول.');
+      });
   }, [selected]);
 
   if (error) return <ErrorState message={error} onRetry={() => void load()} />;
@@ -43,5 +51,6 @@ export function PartnerContext() {
   if (companies.length > 1 && !selected) return <section><h2>اختر الشركة</h2><select aria-label="الشركة" defaultValue="" onChange={(event) => setSelected(event.target.value)}><option value="" disabled>اختر الشركة النشطة</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select></section>;
   if (!allowed) return <LoadingState />;
   const company = companies.find((item) => item.id === selected)!;
-  return <section aria-live="polite"><h2>{company.name}</h2><p>بوابة الشريك جاهزة لرحلات المشتريات المعتمدة لاحقًا.</p></section>;
+  if (workspace === undefined) return <LoadingState />;
+  return <section aria-live="polite"><h2>{company.name}</h2><h3>مساحة عمل الشريك</h3>{workspace ? <><p>{workspace.displayName}</p><p>{workspace.capabilities.length ? `الخدمات المتاحة: ${workspace.capabilities.join('، ')}` : 'لا توجد خدمات مفعلة حاليًا لهذه المساحة.'}</p></> : <EmptyState message="لم تُنشأ مساحة عمل خاصة لهذه الشركة بعد." />}</section>;
 }

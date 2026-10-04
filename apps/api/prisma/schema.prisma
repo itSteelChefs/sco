@@ -161,6 +161,45 @@ model ServiceAccessDecision {
   @@map("service_access_decisions")
 }
 
+model PartnerWorkspace {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @unique @map("company_id") @db.Uuid
+  displayName String   @map("display_name")
+  state       String
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version     Int      @default(1)
+
+  @@map("partner_workspaces")
+}
+
+model PartnerWorkspaceProjectLink {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, projectId])
+  @@index([companyId])
+  @@map("partner_workspace_project_links")
+}
+
+model PartnerWorkspaceDocumentReference {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  documentId  String   @map("document_id") @db.Uuid
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, documentId])
+  @@index([companyId])
+  @@map("partner_workspace_document_references")
+}
+
 model ProductCategory {
   id String @id @default(uuid()) @db.Uuid
   parentId String? @map("parent_id") @db.Uuid

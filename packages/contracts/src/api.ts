@@ -3,6 +3,7 @@ export type Page<T> = { items: T[]; page: number; pageSize: number; total?: numb
 
 export type ActiveCompany = { id: string; name: string; type: string };
 export type CompanyProjection = { id: string; name: string; type: string; tenantId: string };
+export type PartnerWorkspace = { id: string; displayName: string; state: string; version: number; capabilities: string[] };
 export type ApiErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'VALIDATION_FAILED' | 'INTERNAL_ERROR' | string;
 
 export class ApiClientError extends Error {
@@ -45,6 +46,8 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 		context: () => request<{ companies: ActiveCompany[] }>('/api/v1/auth/context'),
 		company: (companyId: string) => request<CompanyProjection>('/api/v1/companies/current/me', { companyId }),
 		partner: (companyId: string) => request<{ companyId: string; membershipId: string }>('/api/v1/partner/me', { companyId }),
+		partnerWorkspace: (companyId: string) => request<PartnerWorkspace | null>('/api/v1/partner/workspace/current', { companyId }),
+		createPartnerWorkspace: (companyId: string) => request<PartnerWorkspace>('/api/v1/partner/workspace/current', { method: 'POST', companyId, body: {} }),
 		companies: (companyId: string, page = 1, pageSize = 25) => request<Page<{ id: string; name: string; type: string; status: string }>>(`/api/v1/internal/companies?page=${page}&pageSize=${pageSize}`, { companyId }),
 	};
 }

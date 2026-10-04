@@ -80,6 +80,11 @@ export const PURPOSE_REQUIREMENT = {
     purpose: PURPOSE.PROCUREMENT_NEED_INTAKE,
     flow: PURPOSE_FLOW.CPF_03,
   },
+  PROCUREMENT_INTELLIGENCE: {
+    kind: 'CROSS_PURPOSE_FLOW',
+    purpose: PURPOSE.PROCUREMENT_INTELLIGENCE,
+    flow: PURPOSE_FLOW.CPF_33,
+  },
 } as const satisfies Record<string, PurposeRequirement>;
 
 export function isPurposeRequirement(value: unknown): value is PurposeRequirement {

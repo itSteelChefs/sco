@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { MetricsService } from '../observability/metrics.service.js';
 import { createObservedPool } from './observed-pool.js';
 
@@ -7,6 +7,16 @@ export type PricingAllocationInput = { snapshotId: string; quantity: number; fxR
 export type PricingLineInput = { lineNumber: number; productIdentityId: string; quantity: number; unitId: string; unitSellingPrice: number; taxTreatmentCode?: string; taxRate?: number; taxAmount?: number; allocations: PricingAllocationInput[] };
 export type DirectDealCostInput = { lineNumber: number; type: string; description?: string; currency: string; amount: number; fxRate?: number; asOfDate?: string; fxReason?: string };
 export type CreatePricingInput = { caseId?: string; partnerCompanyId: string; currency: string; lines: PricingLineInput[]; directCosts?: DirectDealCostInput[]; overhead?: number; overheadReason?: string; correlationId?: string };
+export type ProcurementIntelligenceTransactionBinding = {
+  backendPid: number;
+  transactionId: string;
+};
+export type ProcurementIntelligenceRunInput = {
+  actorUserId: string;
+  sourceBuyingPowerSnapshotId: string;
+  requestKey: string;
+  correlationId?: string;
+};
 @Injectable()
 export class InternalDatabaseService implements OnModuleDestroy {
   private readonly pool: Pool;
@@ -15,6 +25,44 @@ export class InternalDatabaseService implements OnModuleDestroy {
   }
   async onModuleDestroy() { await this.pool.end(); }
   async ping(): Promise<void> { await this.pool.query('SELECT 1'); }
+  async runProcurementIntelligence(
+    input: ProcurementIntelligenceRunInput,
+    authorize: (binding: ProcurementIntelligenceTransactionBinding) => Promise<string>,
+  ): Promise<{ runId: string; snapshotId: string }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const binding = await this.procurementIntelligenceTransactionBinding(client);
+      const decisionId = await authorize(binding);
+      const result = await client.query<{ run_id: string; snapshot_id: string }>(
+        'SELECT * FROM public.internal_procurement_intelligence_run($1, $2, $3, $4::uuid, $5)',
+        [
+          input.actorUserId,
+          input.sourceBuyingPowerSnapshotId,
+          input.requestKey,
+          input.correlationId ?? null,
+          decisionId,
+        ],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('Procurement Intelligence gateway did not return a result.');
+      await client.query('COMMIT');
+      return { runId: row.run_id, snapshotId: row.snapshot_id };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  private async procurementIntelligenceTransactionBinding(client: PoolClient): Promise<ProcurementIntelligenceTransactionBinding> {
+    const result = await client.query<{ backend_pid: number; transaction_id: string }>(
+      'SELECT pg_backend_pid() AS backend_pid, txid_current()::text AS transaction_id',
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error('Unable to bind Procurement Intelligence transaction authority.');
+    return { backendPid: row.backend_pid, transactionId: row.transaction_id };
+  }
   async createDisclosureAlias(actor: string, input: { ownerCompanyId: string; recipientCompanyId: string; recipientContext: string; resourceType: string; resourceId: string; identityClass: string; subjectReference: string; alias: string }) {
     return (await this.pool.query<{ id: string }>(
       'SELECT public.internal_disclosure_alias_create($1,$2,$3,$4,$5,$6,$7,$8,$9) AS id',

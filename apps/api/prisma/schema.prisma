@@ -16,6 +16,9 @@ model User {
   updatedAt    DateTime            @updatedAt @db.Timestamptz(6)
   memberships  CompanyMembership[]
   sessions     Session[]
+  procurementIntelligenceRuns ProcurementIntelligenceRun[] @relation("ProcurementIntelligenceRunInitiator")
+  procurementIntelligenceSnapshots ProcurementIntelligenceSnapshot[] @relation("ProcurementIntelligenceSnapshotPublisher")
+  procurementIntelligencePurposeDecisions ProcurementIntelligencePurposeDecision[]
 }
 
 model Session {
@@ -52,6 +55,7 @@ model Company {
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   memberships CompanyMembership[]
   partnerships CompanyPartnership[]
+  procurementIntelligencePurposeDecisions ProcurementIntelligencePurposeDecision[]
 }
 
 model QualificationApplication {
@@ -136,6 +140,7 @@ model UnitDefinition {
   active Boolean @default(true)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  procurementIntelligenceSnapshotLines ProcurementIntelligenceSnapshotLine[]
   @@map("unit_definitions")
 }
 
@@ -168,6 +173,7 @@ model ProductIdentity {
   activatedAt DateTime? @map("activated_at") @db.Timestamptz(6)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  procurementIntelligenceSnapshotLines ProcurementIntelligenceSnapshotLine[]
   @@index([categoryId, status])
   @@map("product_identities")
 }
@@ -675,6 +681,113 @@ model DisclosureRevealAuthorityEvent {
  @@map("disclosure_reveal_authority_events")
 }
 
+model ProcurementIntelligencePurposeDecision {
+  id                          String   @id @default(uuid()) @db.Uuid
+  actorUserId                 String   @map("actor_user_id") @db.Uuid
+  authorizationCompanyId      String   @map("authorization_company_id") @db.Uuid
+  sourceBuyingPowerSnapshotId String   @map("source_buying_power_snapshot_id") @db.Uuid
+  operation                   String
+  purposeCode                 String   @map("purpose_code")
+  flowCpfId                   String   @map("flow_cpf_id")
+  issuedAt                    DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt                   DateTime @map("expires_at") @db.Timestamptz(6)
+  consumedAt                  DateTime? @map("consumed_at") @db.Timestamptz(6)
+  executedAt                  DateTime? @map("executed_at") @db.Timestamptz(6)
+  consumedBackendPid          Int?     @map("consumed_backend_pid")
+  consumedTransactionId       BigInt?  @map("consumed_transaction_id")
+  actor                       User     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  authorizationCompany        Company  @relation(fields: [authorizationCompanyId], references: [id], onDelete: Restrict)
+  run                         ProcurementIntelligenceRun?
+
+  @@index([expiresAt])
+  @@map("procurement_intelligence_purpose_decisions")
+}
+
+model ProcurementIntelligenceRun {
+  id                          String                           @id @default(uuid()) @db.Uuid
+  initiatedBy                 String                           @map("initiated_by") @db.Uuid
+  authorityDecisionId         String                           @unique @map("authority_decision_id") @db.Uuid
+  sourceBuyingPowerSnapshotId String                           @map("source_buying_power_snapshot_id") @db.Uuid
+  horizon                     BuyingPowerHorizon
+  timeBucket                  DateTime                         @map("time_bucket") @db.Date
+  cutoffAt                    DateTime                         @map("cutoff_at") @db.Timestamptz(6)
+  requestKey                  String                           @unique @map("request_key")
+  sourceFingerprint           String                           @map("source_fingerprint")
+  status                      ProcurementIntelligenceRunStatus @default(STARTED)
+  correlationId               String?                          @map("correlation_id") @db.Uuid
+  completedAt                 DateTime?                        @map("completed_at") @db.Timestamptz(6)
+  errorCode                   String?                          @map("error_code")
+  createdAt                   DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  initiator                   User                             @relation("ProcurementIntelligenceRunInitiator", fields: [initiatedBy], references: [id], onDelete: Restrict)
+  authorityDecision           ProcurementIntelligencePurposeDecision @relation(fields: [authorityDecisionId], references: [id], onDelete: Restrict)
+  snapshot                    ProcurementIntelligenceSnapshot?
+
+  @@index([sourceBuyingPowerSnapshotId])
+  @@map("procurement_intelligence_runs")
+}
+
+model ProcurementIntelligenceSnapshot {
+  id                           String                                              @id @default(uuid()) @db.Uuid
+  procurementIntelligenceRunId String                                              @unique @map("procurement_intelligence_run_id") @db.Uuid
+  sourceBuyingPowerSnapshotId  String                                              @map("source_buying_power_snapshot_id") @db.Uuid
+  horizon                      BuyingPowerHorizon
+  timeBucket                   DateTime                                            @map("time_bucket") @db.Date
+  cutoffAt                     DateTime                                            @map("cutoff_at") @db.Timestamptz(6)
+  sourceFingerprint            String                                              @map("source_fingerprint")
+  publishedAt                  DateTime                                            @default(now()) @map("published_at") @db.Timestamptz(6)
+  publishedBy                  String                                              @map("published_by") @db.Uuid
+  correlationId                String?                                             @map("correlation_id") @db.Uuid
+  createdAt                    DateTime                                            @default(now()) @map("created_at") @db.Timestamptz(6)
+  run                          ProcurementIntelligenceRun                          @relation(fields: [procurementIntelligenceRunId], references: [id], onDelete: Restrict)
+  publisher                    User                                                @relation("ProcurementIntelligenceSnapshotPublisher", fields: [publishedBy], references: [id], onDelete: Restrict)
+  lines                        ProcurementIntelligenceSnapshotLine[]
+  sourceMemberships            ProcurementIntelligenceSnapshotSourceMembership[]
+
+  @@map("procurement_intelligence_snapshots")
+}
+
+model ProcurementIntelligenceSnapshotLine {
+  id                              String                                            @id @default(uuid()) @db.Uuid
+  snapshotId                      String                                            @map("snapshot_id") @db.Uuid
+  sourceBuyingPowerSnapshotLineId String                                            @map("source_buying_power_snapshot_line_id") @db.Uuid
+  productIdentityId               String                                            @map("product_identity_id") @db.Uuid
+  unitId                          String                                            @map("unit_id") @db.Uuid
+  committedQuantity               Decimal?                                          @map("committed_quantity") @db.Decimal(18, 4)
+  potentialQuantity               Decimal?                                          @map("potential_quantity") @db.Decimal(18, 4)
+  qualifiedQuantity               Decimal?                                          @map("qualified_quantity") @db.Decimal(18, 4)
+  openQuantity                    Decimal?                                          @map("open_quantity") @db.Decimal(18, 4)
+  releasedQuantity                Decimal?                                          @map("released_quantity") @db.Decimal(18, 4)
+  procuredQuantity                Decimal?                                          @map("procured_quantity") @db.Decimal(18, 4)
+  createdAt                       DateTime                                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  snapshot                        ProcurementIntelligenceSnapshot                  @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  productIdentity                 ProductIdentity                                  @relation(fields: [productIdentityId], references: [id], onDelete: Restrict)
+  unit                            UnitDefinition                                    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  sourceMemberships               ProcurementIntelligenceSnapshotSourceMembership[]
+
+  @@unique([snapshotId, productIdentityId, unitId])
+  @@unique([snapshotId, sourceBuyingPowerSnapshotLineId])
+  @@index([snapshotId])
+  @@map("procurement_intelligence_snapshot_lines")
+}
+
+model ProcurementIntelligenceSnapshotSourceMembership {
+  id                                    String                              @id @default(uuid()) @db.Uuid
+  snapshotLineId                        String                              @map("snapshot_line_id") @db.Uuid
+  snapshotId                            String                              @map("snapshot_id") @db.Uuid
+  sourceBuyingPowerSnapshotLineId       String                              @map("source_buying_power_snapshot_line_id") @db.Uuid
+  sourceBuyingPowerSnapshotMembershipId String                              @map("source_buying_power_snapshot_membership_id") @db.Uuid
+  contributionClass                     String                              @map("contribution_class")
+  contributionQuantity                  Decimal                             @map("contribution_quantity") @db.Decimal(18, 4)
+  unitId                                String                              @map("unit_id") @db.Uuid
+  createdAt                             DateTime                            @default(now()) @map("created_at") @db.Timestamptz(6)
+  snapshotLine                          ProcurementIntelligenceSnapshotLine @relation(fields: [snapshotLineId], references: [id], onDelete: Restrict, map: "pi_snapshot_source_memberships_line_fkey")
+  snapshot                              ProcurementIntelligenceSnapshot     @relation(fields: [snapshotId], references: [id], onDelete: Restrict, map: "pi_snapshot_source_memberships_snapshot_fkey")
+
+  @@unique([snapshotLineId, sourceBuyingPowerSnapshotMembershipId])
+  @@index([snapshotId])
+  @@map("procurement_intelligence_snapshot_source_memberships")
+}
+
 model DocumentPolicyRevision {
  id                     String                          @id @default(uuid()) @db.Uuid
  documentId             String                          @map("document_id") @db.Uuid
@@ -810,6 +923,17 @@ enum DocumentPolicyOperation {
  EXPORT
  EXTERNAL_DISCLOSURE
  RETENTION_DISPOSAL
+}
+
+enum BuyingPowerHorizon {
+  WEEKLY_IMMEDIATE
+  ROLLING_PLANNED
+}
+
+enum ProcurementIntelligenceRunStatus {
+  STARTED
+  PUBLISHED
+  FAILED
 }
 
 enum DisclosureAliasLifecycleStatus {

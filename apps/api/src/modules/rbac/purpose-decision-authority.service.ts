@@ -2,6 +2,10 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 
 type DocumentPolicyPurposeOperation = 'POLICY_REVISE' | 'LINEAGE_CREATE';
+export type ProcurementIntelligencePurposeDecision = {
+  decisionId: string;
+  authorizationCompanyId: string;
+};
 
 @Injectable()
 export class PurposeDecisionAuthorityService implements OnModuleDestroy {
@@ -73,6 +77,47 @@ export class PurposeDecisionAuthorityService implements OnModuleDestroy {
     await this.pool.query(
       'SELECT public.consume_document_policy_purpose_decision($1,$2,$3,$4,$5,$6,$7,$8::bigint)',
       [decisionId, actorUserId, companyId, documentId, relatedDocumentId, operation, backendPid, transactionId],
+    );
+  }
+
+  async issueProcurementIntelligenceRun(
+    actorUserId: string,
+    sourceBuyingPowerSnapshotId: string,
+  ): Promise<ProcurementIntelligencePurposeDecision> {
+    const result = await this.pool.query<{
+      decision_id: string;
+      authorization_company_id: string;
+    }>(
+      'SELECT * FROM public.issue_procurement_intelligence_purpose_decision($1, $2)',
+      [actorUserId, sourceBuyingPowerSnapshotId],
+    );
+    const row = result.rows[0];
+    if (!row?.decision_id || !row.authorization_company_id) {
+      throw new Error('Procurement Intelligence purpose decision issuance failed.');
+    }
+    return {
+      decisionId: row.decision_id,
+      authorizationCompanyId: row.authorization_company_id,
+    };
+  }
+
+  async consumeProcurementIntelligenceRun(
+    decision: ProcurementIntelligencePurposeDecision,
+    actorUserId: string,
+    sourceBuyingPowerSnapshotId: string,
+    backendPid: number,
+    transactionId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      'SELECT public.consume_procurement_intelligence_purpose_decision($1, $2, $3, $4, $5, $6::bigint)',
+      [
+        decision.decisionId,
+        actorUserId,
+        decision.authorizationCompanyId,
+        sourceBuyingPowerSnapshotId,
+        backendPid,
+        transactionId,
+      ],
     );
   }
 

@@ -23,6 +23,9 @@ let partnerCompany: string; let scoCompany: string;
 let authorizedUser: string; let noPermissionUser: string; let scoUser: string;
 let analyst: string; let approver: string; let writer: string;
 let request: string; let unitId: string;
+let foreignPartner: string; let foreignWriter: string; let foreignReader: string; let foreignRequest: string;
+let suspendedPartner: string; let suspendedUser: string; let noBcPartner: string; let noBcUser: string;
+let agreementPartner: string; let agreementUser: string;
 
 async function grant(userId: string, companyId: string, code: string) {
   const membership = (await owner.query('SELECT id FROM "CompanyMembership" WHERE "userId"=$1 AND "companyId"=$2', [userId, companyId])).rows[0].id;
@@ -38,12 +41,67 @@ async function login(email: string) {
   return response.headers['set-cookie'] as string;
 }
 
-async function getResult(cookie: string | undefined, requestId: string, companyId?: string) {
+async function getResult(cookie: string | undefined, requestId: string, companyId?: string, extra: { headers?: Record<string, string>; query?: string } = {}) {
   return app.inject({
     method: 'GET',
-    url: `/api/v1/partner/verify/requests/${requestId}/result`,
-    headers: { ...(cookie ? { cookie } : {}), ...(companyId ? { 'x-sco-company-id': companyId } : {}) },
+    url: `/api/v1/partner/verify/requests/${requestId}/result${extra.query ?? ''}`,
+    headers: { ...(cookie ? { cookie } : {}), ...(companyId ? { 'x-sco-company-id': companyId } : {}), ...(extra.headers ?? {}) },
   });
+}
+
+async function auditRows(actorUserId: string, action: string) {
+  return (await owner.query(
+    `SELECT metadata, authorization_decision, purpose_code FROM audit_logs WHERE actor_user_id=$1 AND action=$2 ORDER BY created_at DESC, id DESC`,
+    [actorUserId, action],
+  )).rows as Array<{ metadata: Record<string, unknown>; authorization_decision: string; purpose_code: string }>;
+}
+
+// Builds one FINAL request end-to-end via the existing approved gateway chain (no new lifecycle).
+async function buildFinalRequest(companyId: string, writerUser: string): Promise<string> {
+  const partner = new Client({ connectionString: process.env.RUNTIME_DATABASE_URL });
+  await partner.connect();
+  await partner.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [writerUser, companyId]);
+  let requestId: string;
+  let revision: string;
+  try {
+    requestId = (await partner.query('SELECT partner_verify_request_create($1,$2,$3) request_id', [writerUser, companyId, id()])).rows[0].request_id;
+    const line = [{ lineNumber: 1, itemDescription: 'HTTP line', quantity: 1, unitId, currencyCode: 'SAR', unitPrice: 10, isPriceBearing: true }];
+    revision = (await partner.query(
+      `SELECT partner_verify_revision_create($1,$2,$3,$4,$5::text[],$6::jsonb,$7,$8,$9,$10::jsonb,$11,$12) revision_id`,
+      [writerUser, companyId, requestId, null, ['SAR'], JSON.stringify({}), null, null, `http-input-${id()}`, JSON.stringify(line), `http-key-${id()}`, id()],
+    )).rows[0].revision_id;
+    const lineId = (await owner.query('SELECT id FROM verify_quote_lines WHERE verify_quote_revision_id=$1', [revision])).rows[0].id;
+    await partner.query('SELECT partner_verify_line_readiness_set($1,$2,$3,$4,$5,$6)', [writerUser, companyId, lineId, 'READY_FOR_VERIFICATION', null, id()]);
+    await partner.query('SELECT partner_verify_request_submit($1,$2,$3,$4,$5)', [writerUser, companyId, requestId, revision, id()]);
+  } finally { await partner.end(); }
+
+  const lineId = (await owner.query('SELECT id FROM verify_quote_lines WHERE verify_quote_revision_id=$1', [revision])).rows[0].id;
+  const run = (await system.query('SELECT internal_verify_system_run_create($1,$2,$3,$4,$5) run_id', [revision, 'verify-v0.1', `ev-http-${id()}`, null, id()])).rows[0].run_id;
+  await system.query('SELECT internal_verify_system_run_start($1,$2)', [run, id()]);
+  await system.query('SELECT internal_verify_system_line_result_record($1,$2,$3,$4,$5,$6) result_id', [run, lineId, 'VERIFIED', null, null, id()]);
+  await system.query('SELECT internal_verify_system_run_complete($1,$2)', [run, id()]);
+
+  await internal.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [analyst, scoCompany]);
+  const result = (await internal.query('SELECT internal_verify_result_prepare_computed($1,$2,$3,$4) result_id', [analyst, run, null, id()])).rows[0].result_id;
+  await internal.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [approver, scoCompany]);
+  await internal.query('SELECT internal_verify_result_finalize($1,$2,$3)', [approver, result, id()]);
+  return requestId;
+}
+
+async function createLoginUser(companyId: string, permissions: string[], classD: boolean) {
+  const userId = id();
+  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+  await owner.query(`INSERT INTO "User"(id,email,"passwordHash",status) VALUES($1,$2,$3,'ACTIVE')`, [userId, `${userId}@http-1e.test`, passwordHash]);
+  await owner.query('INSERT INTO "CompanyMembership"(id,"userId","companyId",status) VALUES($1,$2,$3,\'ACTIVE\')', [id(), userId, companyId]);
+  for (const permission of permissions) await grant(userId, companyId, permission);
+  if (classD) await establishClassDPartnerEligibility(owner, userId, companyId);
+  return userId;
+}
+
+async function createPartner(label: string) {
+  const companyId = id();
+  await owner.query(`INSERT INTO "Company"(id,name,type) VALUES($1,$2,'PARTNER')`, [companyId, `HTTP ${label}`]);
+  return companyId;
 }
 
 beforeAll(async () => {
@@ -85,33 +143,20 @@ beforeAll(async () => {
   await grant(analyst, scoCompany, 'verify.analyst');
   await grant(approver, scoCompany, 'verify.approver');
 
-  // Build one authorized FINAL request end-to-end via the existing approved gateway chain (no new lifecycle).
-  const partner = new Client({ connectionString: process.env.RUNTIME_DATABASE_URL });
-  await partner.connect();
-  await partner.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [writer, partnerCompany]);
-  let revision: string;
-  try {
-    request = (await partner.query('SELECT partner_verify_request_create($1,$2,$3) request_id', [writer, partnerCompany, id()])).rows[0].request_id;
-    const line = [{ lineNumber: 1, itemDescription: 'HTTP line', quantity: 1, unitId, currencyCode: 'SAR', unitPrice: 10, isPriceBearing: true }];
-    revision = (await partner.query(
-      `SELECT partner_verify_revision_create($1,$2,$3,$4,$5::text[],$6::jsonb,$7,$8,$9,$10::jsonb,$11,$12) revision_id`,
-      [writer, partnerCompany, request, null, ['SAR'], JSON.stringify({}), null, null, `http-input-${id()}`, JSON.stringify(line), `http-key-${id()}`, id()],
-    )).rows[0].revision_id;
-    const lineId = (await owner.query('SELECT id FROM verify_quote_lines WHERE verify_quote_revision_id=$1', [revision])).rows[0].id;
-    await partner.query('SELECT partner_verify_line_readiness_set($1,$2,$3,$4,$5,$6)', [writer, partnerCompany, lineId, 'READY_FOR_VERIFICATION', null, id()]);
-    await partner.query('SELECT partner_verify_request_submit($1,$2,$3,$4,$5)', [writer, partnerCompany, request, revision, id()]);
-  } finally { await partner.end(); }
+  request = await buildFinalRequest(partnerCompany, writer);
 
-  const lineId = (await owner.query('SELECT id FROM verify_quote_lines WHERE verify_quote_revision_id=$1', [revision!])).rows[0].id;
-  const run = (await system.query('SELECT internal_verify_system_run_create($1,$2,$3,$4,$5) run_id', [revision!, 'verify-v0.1', `ev-http-${id()}`, null, id()])).rows[0].run_id;
-  await system.query('SELECT internal_verify_system_run_start($1,$2)', [run, id()]);
-  await system.query('SELECT internal_verify_system_line_result_record($1,$2,$3,$4,$5,$6) result_id', [run, lineId, 'VERIFIED', null, null, id()]);
-  await system.query('SELECT internal_verify_system_run_complete($1,$2)', [run, id()]);
+  foreignPartner = await createPartner('Foreign Partner');
+  foreignWriter = await createLoginUser(foreignPartner, ['partner_verify.write'], false);
+  foreignReader = await createLoginUser(foreignPartner, ['partner_verify.read'], true);
+  foreignRequest = await buildFinalRequest(foreignPartner, foreignWriter);
 
-  await internal.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [analyst, scoCompany]);
-  const result = (await internal.query('SELECT internal_verify_result_prepare_computed($1,$2,$3,$4) result_id', [analyst, run, null, id()])).rows[0].result_id;
-  await internal.query(`SELECT set_config('app.actor_id',$1,false),set_config('app.tenant_id',$2,false)`, [approver, scoCompany]);
-  await internal.query('SELECT internal_verify_result_finalize($1,$2,$3)', [approver, result, id()]);
+  suspendedPartner = await createPartner('Suspended Partner');
+  suspendedUser = await createLoginUser(suspendedPartner, ['partner_verify.read'], true);
+  noBcPartner = await createPartner('No Binding Confidentiality Partner');
+  noBcUser = await createLoginUser(noBcPartner, ['partner_verify.read', 'partner.portal.read'], false);
+  await owner.query(`INSERT INTO company_partnerships(company_id,type,status) VALUES($1,'BUYER_PARTNERSHIP','ACTIVE')`, [noBcPartner]);
+  agreementPartner = await createPartner('Agreement State Partner');
+  agreementUser = await createLoginUser(agreementPartner, ['partner_verify.read'], true);
 
   const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
@@ -167,5 +212,105 @@ describe('Batch 1-E P3: HTTP-level guard/decorator wiring for GET /api/v1/partne
     const cookie = await login(`${authorizedUser}@http-1e.test`);
     const response = await getResult(cookie, id(), partnerCompany);
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('H1 real HTTP adversarial coverage for GET /api/v1/partner/verify/requests/:requestId/result', () => {
+  it('eligible Partner succeeds and the allowed audit is written only for the final allow, with the registry VERIFY purpose', async () => {
+    const cookie = await login(`${authorizedUser}@http-1e.test`);
+    const before = (await auditRows(authorizedUser, 'authorization.purpose_allowed')).length;
+    const response = await getResult(cookie, request, partnerCompany);
+    expect(response.statusCode).toBe(200);
+    const rows = await auditRows(authorizedUser, 'authorization.purpose_allowed');
+    expect(rows.length).toBe(before + 1);
+    expect(rows[0]).toMatchObject({ authorization_decision: 'ALLOWED', purpose_code: 'PUR-14' });
+  });
+
+  it('missing the exact permission denies, even for a writer in the same Partner company (partner_verify.write is not read)', async () => {
+    const cookie = await login(`${writer}@http-1e.test`);
+    expect((await getResult(cookie, request, partnerCompany)).statusCode).toBe(403);
+    const rows = await auditRows(writer, 'authorization.operation_denied');
+    expect(rows[0].metadata).toMatchObject({ operation: 'partner_verify.result.read', reason: 'PERMISSION_MISSING', failedLayer: 'PERMISSION' });
+  });
+
+  it('a malformed request id denies fail-closed and is attributed to its own request as RESOURCE_CONTEXT_MALFORMED', async () => {
+    const cookie = await login(`${authorizedUser}@http-1e.test`);
+    const before = (await auditRows(authorizedUser, 'authorization.operation_denied')).length;
+    const response = await getResult(cookie, 'not-a-uuid', partnerCompany);
+    expect(response.statusCode).toBe(403);
+    expect(JSON.parse(response.body)).toEqual({ error: { code: 'FORBIDDEN' } });
+    const rows = await auditRows(authorizedUser, 'authorization.operation_denied');
+    expect(rows.length).toBe(before + 1);
+    expect(rows[0].metadata).toMatchObject({ reason: 'RESOURCE_CONTEXT_MALFORMED', failedLayer: 'RESOURCE_CONTEXT' });
+  });
+
+  it('an existing foreign request is indistinguishable from a non-existent one (safe not-found, no body difference)', async () => {
+    const cookie = await login(`${authorizedUser}@http-1e.test`);
+    const foreign = await getResult(cookie, foreignRequest, partnerCompany);
+    const absent = await getResult(cookie, id(), partnerCompany);
+    expect(foreign.statusCode).toBe(404);
+    expect(absent.statusCode).toBe(404);
+    expect(foreign.body).toBe(absent.body);
+    expect(foreign.body).not.toContain(foreignRequest);
+  });
+
+  it('resource substitution: request A authority cannot read request B, in either direction, and each owner still reads its own', async () => {
+    const aCookie = await login(`${authorizedUser}@http-1e.test`);
+    const bCookie = await login(`${foreignReader}@http-1e.test`);
+    expect((await getResult(aCookie, request, partnerCompany)).statusCode).toBe(200);
+    expect((await getResult(bCookie, foreignRequest, foreignPartner)).statusCode).toBe(200);
+    expect((await getResult(aCookie, foreignRequest, partnerCompany)).statusCode).toBe(404);
+    expect((await getResult(bCookie, request, foreignPartner)).statusCode).toBe(404);
+  });
+
+  it('a foreign company header cannot widen access (no membership there, or wrong company type)', async () => {
+    const aCookie = await login(`${authorizedUser}@http-1e.test`);
+    expect((await getResult(aCookie, foreignRequest, foreignPartner)).statusCode).toBe(403);
+    expect((await getResult(aCookie, request, scoCompany)).statusCode).toBe(403);
+    const scoCookie = await login(`${scoUser}@http-1e.test`);
+    expect((await getResult(scoCookie, request, partnerCompany)).statusCode).toBe(403);
+    expect((await getResult(aCookie, request, 'not-a-uuid')).statusCode).toBe(403);
+  });
+
+  it('a suspended Partner is denied at PARTNER_ELIGIBILITY and the denial is not recorded as a purpose success', async () => {
+    const cookie = await login(`${suspendedUser}@http-1e.test`);
+    expect((await getResult(cookie, request, suspendedPartner)).statusCode).toBe(404);
+    await owner.query(`UPDATE company_partnerships SET status='SUSPENDED' WHERE company_id=$1 AND type='BUYER_PARTNERSHIP'`, [suspendedPartner]);
+    const allowedBefore = (await auditRows(suspendedUser, 'authorization.purpose_allowed')).length;
+    expect((await getResult(cookie, request, suspendedPartner)).statusCode).toBe(403);
+    expect((await auditRows(suspendedUser, 'authorization.purpose_allowed')).length).toBe(allowedBefore);
+    expect((await auditRows(suspendedUser, 'authorization.operation_denied'))[0].metadata).toMatchObject({ reason: 'PARTNER_NOT_ELIGIBLE', failedLayer: 'PARTNER_ELIGIBILITY' });
+  });
+
+  it('a Partner without Binding Confidentiality is denied despite an ACTIVE partnership, portal access and permission', async () => {
+    const cookie = await login(`${noBcUser}@http-1e.test`);
+    expect((await getResult(cookie, request, noBcPartner)).statusCode).toBe(403);
+    expect((await auditRows(noBcUser, 'authorization.operation_denied'))[0].metadata).toMatchObject({ reason: 'PARTNER_NOT_ELIGIBLE' });
+  });
+
+  it('an agreement acceptance that is no longer in a satisfying state (SUSPENDED event) denies', async () => {
+    const cookie = await login(`${agreementUser}@http-1e.test`);
+    expect((await getResult(cookie, request, agreementPartner)).statusCode).toBe(404);
+    const acceptance = (await owner.query<{ id: string }>('SELECT id FROM partner_agreement_acceptances WHERE company_id=$1', [agreementPartner])).rows[0].id;
+    await owner.query(
+      `INSERT INTO partner_agreement_acceptance_events(acceptance_id, company_id, status, actor_user_id, correlation_id) VALUES ($1,$2,'SUSPENDED',$3,$4)`,
+      [acceptance, agreementPartner, agreementUser, id()],
+    );
+    expect((await getResult(cookie, request, agreementPartner)).statusCode).toBe(403);
+    expect((await auditRows(agreementUser, 'authorization.operation_denied'))[0].metadata).toMatchObject({ reason: 'PARTNER_NOT_ELIGIBLE' });
+  });
+
+  it('forged purpose headers and query claims cannot change the registry-owned VERIFY purpose', async () => {
+    const cookie = await login(`${authorizedUser}@http-1e.test`);
+    const response = await getResult(cookie, request, partnerCompany, {
+      headers: { 'x-sco-purpose': 'PUR-02', 'x-purpose': 'PUR-02', 'x-purpose-code': 'PUR-02' },
+      query: '?purpose=PUR-02&purposeCode=PUR-02&flow=CPF_02',
+    });
+    expect(response.statusCode).toBe(200);
+    expect((await auditRows(authorizedUser, 'authorization.purpose_allowed'))[0].purpose_code).toBe('PUR-14');
+
+    const denied = await login(`${noPermissionUser}@http-1e.test`);
+    const forgedDenied = await getResult(denied, request, partnerCompany, { headers: { 'x-sco-purpose': 'PUR-14' }, query: '?purpose=PUR-14' });
+    expect(forgedDenied.statusCode).toBe(403);
   });
 });

@@ -9,7 +9,8 @@ import { ProcurementDocumentsController } from './procurement-documents.controll
 import { AuthModule } from '../auth/auth.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { RbacModule } from '../rbac/rbac.module.js';
+import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { createDocumentStorageProvider, DOCUMENT_STORAGE } from './storage-provider.js';
 import { MetricsService } from '../../observability/metrics.service.js';
-@Module({ imports: [DatabaseModule, AuditModule, AuthModule, IdentityModule, RbacModule], controllers: [ProcurementDocumentsController], providers: [{ provide: DOCUMENT_STORAGE, inject: [MetricsService], useFactory: (metrics: MetricsService) => createDocumentStorageProvider(process.env, metrics) }, DocumentsService, DeterministicExtractionProvider, ProcurementDocumentsService, SupplierQuoteDocumentService], exports: [DocumentsService, ProcurementDocumentsService, SupplierQuoteDocumentService] })
+@Module({ imports: [DatabaseModule, AuditModule, AuthModule, IdentityModule, RbacModule, AuthorizationModule], controllers: [ProcurementDocumentsController], providers: [{ provide: DOCUMENT_STORAGE, inject: [MetricsService], useFactory: (metrics: MetricsService) => createDocumentStorageProvider(process.env, metrics) }, DocumentsService, DeterministicExtractionProvider, ProcurementDocumentsService, SupplierQuoteDocumentService], exports: [DocumentsService, ProcurementDocumentsService, SupplierQuoteDocumentService] })
 export class DocumentsModule {}

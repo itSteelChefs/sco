@@ -26,8 +26,10 @@ describe('Batch 2 qualification and partnership boundaries', () => {
   });
 
   afterAll(async () => {
+    await owner.query('DELETE FROM qualification_application_events WHERE qualification_application_id IN (SELECT id FROM qualification_applications WHERE submitted_by=$1)', [scoUser]);
     await owner.query('DELETE FROM qualification_applications WHERE submitted_by=$1', [scoUser]);
     await owner.query('DELETE FROM company_partnerships WHERE company_id IN ($1,$2)', [companyA, companyB]);
+    await owner.query('DELETE FROM audit_logs WHERE actor_user_id=$1 OR company_id=$2', [scoUser, scoCompany]);
     await owner.query('DELETE FROM "MembershipRole" WHERE membership_id IN (SELECT id FROM "CompanyMembership" WHERE "userId"=$1)', [scoUser]);
     await owner.query('DELETE FROM "RolePermission" WHERE role_id=$1', [scoRole]);
     await owner.query('DELETE FROM "CompanyMembership" WHERE "userId"=$1', [scoUser]);
@@ -60,22 +62,25 @@ describe('Batch 2 qualification and partnership boundaries', () => {
     expect(created.rows[0].status).toBe('APPLICATION');
   });
 
-  it('allows independent partnerships only in the validated tenant context', async () => {
+  it('denies direct runtime Partnership mutation while retaining own-company reads', async () => {
+    await owner.query(`INSERT INTO company_partnerships (company_id, type, status) VALUES ($1, 'BUYER_PARTNERSHIP', 'ACTIVE')`, [companyA]);
     const client = await runtime.connect();
     try {
       await client.query('BEGIN');
       await client.query("SELECT set_config('app.tenant_id', $1, true)", [companyA]);
-      await client.query(`INSERT INTO company_partnerships (company_id, type, status) VALUES ($1, 'BUYER_PARTNERSHIP', 'ACTIVE')`, [companyA]);
-      await client.query('SAVEPOINT denied_partnership');
-      await expect(client.query(`INSERT INTO company_partnerships (company_id, type) VALUES ($1, 'SUPPLIER_PARTNERSHIP')`, [companyB])).rejects.toBeTruthy();
-      await client.query('ROLLBACK TO SAVEPOINT denied_partnership');
+      await client.query('SAVEPOINT denied_own_partnership_write');
+      await expect(client.query(`UPDATE company_partnerships SET status='REVOKED' WHERE company_id=$1`, [companyA])).rejects.toMatchObject({ code: '42501' });
+      await client.query('ROLLBACK TO SAVEPOINT denied_own_partnership_write');
+      await client.query('SAVEPOINT denied_foreign_partnership_write');
+      await expect(client.query(`INSERT INTO company_partnerships (company_id, type) VALUES ($1, 'SUPPLIER_PARTNERSHIP')`, [companyB])).rejects.toMatchObject({ code: '42501' });
+      await client.query('ROLLBACK TO SAVEPOINT denied_foreign_partnership_write');
       const rows = await client.query(`SELECT type FROM company_partnerships WHERE company_id = $1`, [companyA]);
       expect(rows.rows.map((row) => row.type)).toEqual(['BUYER_PARTNERSHIP']);
       await client.query('ROLLBACK');
     } finally { client.release(); }
   });
 
-  it('does not treat membership as commercial eligibility without an active partnership and permission', async () => {
+  it('does not treat an active Partnership as procurement eligibility without agreement and permissions', async () => {
     const userId = '50000000-0000-4000-8000-000000000010';
     await owner.query(`INSERT INTO "User" (id, email, "passwordHash") VALUES ($1, 'batch2-user@sco.test', 'test-hash') ON CONFLICT DO NOTHING`, [userId]);
     await owner.query(`INSERT INTO "CompanyMembership" ("userId", "companyId", status) VALUES ($1, $2, 'ACTIVE') ON CONFLICT DO NOTHING`, [userId, companyA]);
@@ -84,11 +89,9 @@ describe('Batch 2 qualification and partnership boundaries', () => {
     try {
       await client.query('BEGIN');
       await client.query("SELECT set_config('app.tenant_id', $1, true)", [companyA]);
-      const result = await client.query(
-        `SELECT 1 FROM "CompanyMembership" cm JOIN company_partnerships cp ON cp.company_id = cm."companyId" AND cp.type = 'BUYER_PARTNERSHIP' AND cp.status = 'ACTIVE' WHERE cm."userId" = $1 AND cm."companyId" = $2 AND cm.status = 'ACTIVE'`,
-        [userId, companyA],
-      );
-      expect(result.rowCount).toBe(1);
+      await client.query("SELECT set_config('app.actor_id', $1, true)", [userId]);
+      const result = await client.query('SELECT public.partner_procurement_access_allowed_for_current_actor() AS allowed');
+      expect(result.rows[0].allowed).toBe(false);
       await client.query('ROLLBACK');
     } finally { client.release(); await owner.query('DELETE FROM "CompanyMembership" WHERE "userId" = $1', [userId]); await owner.query('DELETE FROM "User" WHERE id = $1', [userId]); await owner.query('DELETE FROM company_partnerships WHERE company_id = $1', [companyA]); }
   });

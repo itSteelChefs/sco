@@ -516,6 +516,9 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async qualificationCreate(actor: string, legalName: string, contactEmail: string) {
     return (await this.pool.query('SELECT * FROM public.internal_qualification_create($1,$2,$3)', [actor, legalName, contactEmail])).rows[0];
   }
+  async qualificationCreateForCompany(actor: string, companyId: string, legalName: string, contactEmail: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_qualification_create_for_company($1,$2,$3,$4)', [actor, companyId, legalName, contactEmail])).rows[0];
+  }
   async qualificationDecide(actor: string, id: string, status: 'APPROVED' | 'REJECTED', reason?: string) {
     return (await this.pool.query('SELECT * FROM public.internal_qualification_decide($1,$2,$3,$4)', [actor, id, status, reason ?? null])).rows[0] ?? null;
   }
@@ -527,6 +530,35 @@ export class InternalDatabaseService implements OnModuleDestroy {
   }
   async partnershipActivate(actor: string, id: string) {
     return (await this.pool.query('SELECT * FROM public.internal_partnership_activate($1,$2)', [actor, id])).rows[0] ?? null;
+  }
+  async partnershipApprove(actor: string, id: string, reason: string, correlationId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partnership_approve($1,$2,$3,$4)', [actor, id, reason, correlationId])).rows[0] ?? null;
+  }
+  async partnershipSuspend(actor: string, id: string, reason: string, correlationId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partnership_suspend($1,$2,$3,$4)', [actor, id, reason, correlationId])).rows[0] ?? null;
+  }
+  async partnershipRevoke(actor: string, id: string, reason: string, correlationId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partnership_revoke($1,$2,$3,$4)', [actor, id, reason, correlationId])).rows[0] ?? null;
+  }
+  async partnershipReject(actor: string, id: string, reason: string, correlationId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partnership_reject($1,$2,$3,$4)', [actor, id, reason, correlationId])).rows[0] ?? null;
+  }
+  async agreementPolicyCreate(actor: string, input: {
+    agreementType: string; versionCode: string; contentText: string; effectiveAt: string;
+    acceptancePermissionCode: string; reacceptanceRequired: boolean; suspensionEffect: string;
+    terminationEffect: string; retentionClassification: string; required: boolean; correlationId: string;
+  }) {
+    return (await this.pool.query(
+      'SELECT * FROM public.internal_partner_agreement_policy_create($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+      [actor, input.agreementType, input.versionCode, input.contentText, input.effectiveAt, input.acceptancePermissionCode,
+        input.reacceptanceRequired, input.suspensionEffect, input.terminationEffect, input.retentionClassification, input.required, input.correlationId],
+    )).rows[0];
+  }
+  async agreementPolicyPublish(actor: string, id: string, correlationId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partner_agreement_policy_publish($1,$2,$3)', [actor, id, correlationId])).rows[0] ?? null;
+  }
+  async agreementPolicyTransition(actor: string, id: string, state: 'SUSPENDED' | 'TERMINATED', reason: string, correlationId: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_partner_agreement_policy_transition($1,$2,$3,$4,$5)', [actor, id, state, reason, correlationId])).rows[0] ?? null;
   }
   async executionCycleCreate(actor: string, input: { code: string; name: string; opensAt: string; closesAt: string }) {
     return (await this.pool.query('SELECT * FROM public.internal_execution_cycle_create($1,$2,$3,$4,$5)', [actor, input.code, input.name, input.opensAt, input.closesAt])).rows[0];

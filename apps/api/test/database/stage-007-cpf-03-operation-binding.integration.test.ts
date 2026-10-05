@@ -8,6 +8,9 @@ const internal = new Pool({ connectionString: process.env.SCO_INTERNAL_DATABASE_
 const companyA = '71000000-0000-4000-8000-000000000001';
 const companyB = '71000000-0000-4000-8000-000000000002';
 const actor = '71000000-0000-4000-8000-000000000010';
+const role = '71000000-0000-4000-8000-000000000011';
+let membershipId: string;
+let policyId: string;
 
 async function createNeed(companyId = companyA, correlationId: string | null = '71000000-0000-4000-8000-000000000101') {
   return internal.query(
@@ -20,20 +23,77 @@ describe('Stage 007 CPF-03 procurement-need operation binding', () => {
   beforeAll(async () => {
     await owner.query('DELETE FROM audit_logs WHERE company_id IN ($1,$2)', [companyA, companyB]);
     await owner.query('DELETE FROM procurement_needs WHERE company_id IN ($1,$2)', [companyA, companyB]);
+    await owner.query('DELETE FROM partner_agreement_acceptance_events WHERE company_id = $1', [companyA]);
+    await owner.query('DELETE FROM partner_agreement_acceptances WHERE company_id = $1', [companyA]);
+    await owner.query('DELETE FROM partner_agreement_policy_events WHERE policy_version_id IN (SELECT id FROM partner_agreement_policy_versions WHERE created_by=$1)', [actor]);
+    await owner.query('DELETE FROM partner_agreement_policy_versions WHERE created_by=$1', [actor]);
     await owner.query('DELETE FROM company_partnerships WHERE company_id IN ($1,$2)', [companyA, companyB]);
+    await owner.query('DELETE FROM "MembershipRole" WHERE company_id = $1', [companyA]);
+    await owner.query('DELETE FROM "RolePermission" WHERE role_id = $1', [role]);
     await owner.query('DELETE FROM "CompanyMembership" WHERE "userId" = $1', [actor]);
+    await owner.query('DELETE FROM "Role" WHERE id = $1', [role]);
     await owner.query('DELETE FROM "User" WHERE id = $1', [actor]);
     await owner.query('DELETE FROM "Company" WHERE id IN ($1,$2)', [companyA, companyB]);
     await owner.query(`INSERT INTO "Company" (id, name, type) VALUES ($1, 'CPF A', 'PARTNER'), ($2, 'CPF B', 'PARTNER')`, [companyA, companyB]);
     await owner.query(`INSERT INTO "User" (id, email, "passwordHash") VALUES ($1, 'cpf-03@sco.test', 'test-hash')`, [actor]);
-    await owner.query(`INSERT INTO "CompanyMembership" ("userId", "companyId", status) VALUES ($1,$2,'ACTIVE')`, [actor, companyA]);
+    membershipId = (await owner.query<{ id: string }>(
+      `INSERT INTO "CompanyMembership" ("userId", "companyId", status) VALUES ($1,$2,'ACTIVE') RETURNING id`,
+      [actor, companyA],
+    )).rows[0].id;
+    await owner.query(`INSERT INTO "Role" (id,company_id,code,name) VALUES ($1,$2,'cpf-03-partner','CPF-03 Partner')`, [role, companyA]);
+    await owner.query(
+      `INSERT INTO "MembershipRole" (id,company_id,membership_id,role_id) VALUES (gen_random_uuid(),$1,$2,$3)`,
+      [companyA, membershipId, role],
+    );
+    await owner.query(
+      `INSERT INTO "RolePermission" (id,company_id,role_id,permission_id)
+       SELECT gen_random_uuid(),$1,$2,id FROM "Permission" WHERE code IN ('partner.portal.read','partner.agreement.accept')`,
+      [companyA, role],
+    );
+    policyId = (await owner.query<{ id: string }>(
+      `INSERT INTO partner_agreement_policy_versions (
+         agreement_type,version_code,content_text,content_sha256,required,effective_at,
+         acceptance_permission_code,reacceptance_required,suspension_effect,termination_effect,
+         retention_classification,state,created_by
+       ) VALUES (
+         'BINDING_CONFIDENTIALITY','cpf-03-test-v1','CPF-03 test agreement',
+         encode(digest(convert_to('CPF-03 test agreement','UTF8'),'sha256'),'hex'),true,
+         clock_timestamp() - interval '1 minute','partner.agreement.accept',false,
+         'NO_ACCESS_CHANGE','NO_ACCESS_CHANGE','TEST_RETENTION','PUBLISHED',$1
+       ) RETURNING id`,
+      [actor],
+    )).rows[0].id;
+    const acceptanceId = (await owner.query<{ id: string }>(
+      `INSERT INTO partner_agreement_acceptances (
+         company_id,actor_user_id,membership_id,policy_version_id,agreement_type,version_code,
+         accepted_content_sha256,authority_permission_code,authority_basis,purpose_code,
+         idempotency_key,request_fingerprint,correlation_id
+       ) VALUES (
+         $1,$2,$3,$4,'BINDING_CONFIDENTIALITY','cpf-03-test-v1',
+         encode(digest(convert_to('CPF-03 test agreement','UTF8'),'sha256'),'hex'),
+         'partner.agreement.accept','{}'::jsonb,'PUR-02','cpf-03-test-acceptance',repeat('a',64),gen_random_uuid()
+       ) RETURNING id`,
+      [companyA, actor, membershipId, policyId],
+    )).rows[0].id;
+    await owner.query(
+      `INSERT INTO partner_agreement_acceptance_events (acceptance_id,company_id,status,actor_user_id,correlation_id)
+       VALUES ($1,$2,'ACCEPTED',$3,gen_random_uuid())`,
+      [acceptanceId, companyA, actor],
+    );
   });
 
   afterAll(async () => {
     await owner.query('DELETE FROM audit_logs WHERE company_id IN ($1,$2)', [companyA, companyB]);
     await owner.query('DELETE FROM procurement_needs WHERE company_id IN ($1,$2)', [companyA, companyB]);
+    await owner.query('DELETE FROM partner_agreement_acceptance_events WHERE company_id = $1', [companyA]);
+    await owner.query('DELETE FROM partner_agreement_acceptances WHERE company_id = $1', [companyA]);
+    await owner.query('DELETE FROM partner_agreement_policy_events WHERE policy_version_id = $1', [policyId]);
+    await owner.query('DELETE FROM partner_agreement_policy_versions WHERE id = $1', [policyId]);
     await owner.query('DELETE FROM company_partnerships WHERE company_id IN ($1,$2)', [companyA, companyB]);
+    await owner.query('DELETE FROM "MembershipRole" WHERE company_id = $1', [companyA]);
+    await owner.query('DELETE FROM "RolePermission" WHERE role_id = $1', [role]);
     await owner.query('DELETE FROM "CompanyMembership" WHERE "userId" = $1', [actor]);
+    await owner.query('DELETE FROM "Role" WHERE id = $1', [role]);
     await owner.query('DELETE FROM "User" WHERE id = $1', [actor]);
     await owner.query('DELETE FROM "Company" WHERE id IN ($1,$2)', [companyA, companyB]);
     await Promise.all([owner.end(), runtime.end(), internal.end()]);
@@ -41,6 +101,33 @@ describe('Stage 007 CPF-03 procurement-need operation binding', () => {
 
   it('allows the fixed gateway only with an active buyer partnership and creates its audit evidence atomically', async () => {
     await owner.query(`INSERT INTO company_partnerships (company_id, type, status) VALUES ($1,'BUYER_PARTNERSHIP','ACTIVE')`, [companyA]);
+    const eligibility = await owner.query(
+      `SELECT
+         EXISTS (SELECT 1 FROM "Company" WHERE id=$1 AND type='PARTNER' AND status='ACTIVE') AS company_active,
+         EXISTS (SELECT 1 FROM "User" WHERE id=$2 AND status='ACTIVE') AS actor_active,
+         EXISTS (SELECT 1 FROM "CompanyMembership" WHERE "userId"=$2 AND "companyId"=$1 AND status='ACTIVE') AS membership_active,
+         EXISTS (SELECT 1 FROM company_partnerships WHERE company_id=$1 AND type='BUYER_PARTNERSHIP' AND status='ACTIVE') AS partnership_active,
+         EXISTS (
+           SELECT 1 FROM "CompanyMembership" membership
+           JOIN "MembershipRole" membership_role ON membership_role.membership_id=membership.id AND membership_role.company_id=$1
+           JOIN "RolePermission" role_permission ON role_permission.role_id=membership_role.role_id AND role_permission.company_id=$1
+           JOIN "Permission" permission ON permission.id=role_permission.permission_id
+           WHERE membership."userId"=$2 AND membership."companyId"=$1 AND membership.status='ACTIVE'
+             AND permission.code='partner.portal.read'
+         ) AS portal_permission,
+         public.partner_required_agreements_satisfied($1) AS agreement_ready,
+         public.partner_procurement_access_allowed($2,$1) AS access_allowed`,
+      [companyA, actor],
+    );
+    expect(eligibility.rows[0]).toEqual({
+      company_active: true,
+      actor_active: true,
+      membership_active: true,
+      partnership_active: true,
+      portal_permission: true,
+      agreement_ready: true,
+      access_allowed: true,
+    });
 
     const created = await createNeed();
     expect(created.rows[0]).toMatchObject({ description: 'CPF-03 test need', quantity: '1', maturity: 'FORECAST' });

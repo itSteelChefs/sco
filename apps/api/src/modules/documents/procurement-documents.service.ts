@@ -5,10 +5,11 @@ import { AuditService } from '../audit/audit.service.js';
 import { PURPOSE } from '../rbac/purpose-registry.js';
 import { DeterministicExtractionProvider } from './deterministic-extraction.provider.js';
 import type { DocumentExtractionLine } from './extraction.contract.js';
+import { PartnerProcurementAccessService } from '../identity/partner-procurement-access.service.js';
 
 @Injectable()
 export class ProcurementDocumentsService {
-  constructor(@Inject(TenantTransactionService) private readonly tenants: TenantTransactionService, @Inject(DeterministicExtractionProvider) private readonly extraction: DeterministicExtractionProvider, @Inject(AuditService) private readonly audit: AuditService) {}
+  constructor(@Inject(TenantTransactionService) private readonly tenants: TenantTransactionService, @Inject(DeterministicExtractionProvider) private readonly extraction: DeterministicExtractionProvider, @Inject(AuditService) private readonly audit: AuditService, @Inject(PartnerProcurementAccessService) private readonly procurementAccess: PartnerProcurementAccessService) {}
 
   async register(context: TenantContext, input: { documentId: string; filename: string; documentType: string; sourceMetadata?: unknown }) {
     return this.tenants.withTenant(context.userId, context.companyId, async (client) => {
@@ -19,6 +20,7 @@ export class ProcurementDocumentsService {
   }
 
   async extract(context: TenantContext, id: string, lines: DocumentExtractionLine[]) {
+    await this.procurementAccess.require(context);
     return this.tenants.withTenant(context.userId, context.companyId, async (client) => {
       const doc = await client.query(`SELECT id,filename,document_type AS "documentType" FROM procurement_documents WHERE id=$1 FOR UPDATE`, [id]);
       if (!doc.rowCount) throw new NotFoundException();

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { Client, Pool } from 'pg';
 import { InternalDatabaseService } from '../../src/database/internal-database.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const uid = () => randomUUID();
@@ -52,6 +53,7 @@ describe('Batch 10-C Buying Power views and Partner-safe boundary', () => {
     await owner.query(`INSERT INTO procurement_needs(id,company_id,project_id,created_by,source_type,product_identity_id,description,quantity,ready_quantity,unit_id,need_date,maturity,review_status) VALUES($1,$2,$3,$4,'MANUAL',$5,'Own need',100,80,$6,current_date,'READY','APPROVED')`, [needA, partnerA, project, creator, product, unit]);
     lineA = await createCommitment(partnerA, creator);
     await owner.query(`INSERT INTO company_partnerships(company_id,type,status) VALUES($1,'BUYER_PARTNERSHIP','ACTIVE'),($1,'SUPPLIER_PARTNERSHIP','ACTIVE')`, [partnerA]);
+    await establishClassDPartnerEligibility(owner, partnerActor, partnerA);
     await internal.createBuyingPowerConversion(summaryActor, lineA, 'NEED', needA, 100, uid());
     const run = await internal.runBuyingPowerClassification(summaryActor, 'ROLLING_PLANNED', bucket, `views-${uid()}`, [needA], [lineA], uid());
     snapshot = run.snapshotId;

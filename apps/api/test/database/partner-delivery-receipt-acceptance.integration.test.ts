@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { InternalDatabaseService } from '../../src/database/internal-database.service.js';
 import { RuntimeDatabaseService } from '../../src/database/runtime-database.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
+import { createDeliveryIsolationSources } from './delivery-isolation.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -44,12 +46,24 @@ describe('Batch 11-B receipt and acceptance concurrency repair', () => {
   beforeAll(async () => {
     internal = new InternalDatabaseService(); runtime = new RuntimeDatabaseService();
     const sco = (await owner.query(`SELECT id FROM "Company" WHERE type='SCO' AND status='ACTIVE' LIMIT 1`)).rows[0].id;
-    const source = (await owner.query(`SELECT rl.commercial_commitment_line_id,rl.product_identity_id,rl.unit_id,rl.approved_purchase_cost_snapshot_id,rl.purchase_source_id,rl.supplier_company_id,rl.currency_code,rl.unit_purchase_cost,r.commercial_commitment_id,r.partner_company_id FROM procurement_release_lines rl JOIN procurement_releases r ON r.id=rl.release_id WHERE rl.released_quantity>=10 ORDER BY rl.created_at DESC LIMIT 1`)).rows[0];
-    if (!source) throw new Error('no deterministic delivery fixture source');
-    base = source; partnerCompany = source.partner_company_id;
+    const [source] = await createDeliveryIsolationSources(owner);
+    base = {
+      commercial_commitment_line_id: source.commitmentLineId,
+      product_identity_id: source.productIdentityId,
+      unit_id: source.unitId,
+      approved_purchase_cost_snapshot_id: source.approvedPurchaseCostSnapshotId,
+      purchase_source_id: source.purchaseSourceId,
+      supplier_company_id: source.supplierCompanyId,
+      currency_code: source.currencyCode,
+      unit_purchase_cost: source.unitPurchaseCost,
+      commercial_commitment_id: source.commitmentId,
+      partner_company_id: source.partnerCompanyId,
+    };
+    partnerCompany = source.partnerCompanyId;
     scheduler = await principal(sco, ['supplier_po.delivery_schedule.manage', 'supplier_po.delivery_schedule.read_all'], 'scheduler');
     deliveryRecorder = await principal(sco, ['delivery.execution.record'], 'recorder');
     partnerActor = await principal(partnerCompany, ['delivery.receipt.confirm', 'delivery.acceptance.confirm', 'delivery.issue.record', 'partner_delivery_projection.read'], 'partner');
+    await establishClassDPartnerEligibility(owner, partnerActor, partnerCompany);
   });
 
   afterAll(async () => { await runtime.onModuleDestroy(); await internal.onModuleDestroy(); await owner.end(); });

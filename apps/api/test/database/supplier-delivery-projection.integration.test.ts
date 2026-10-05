@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { Client, Pool } from 'pg';
 import { InternalDatabaseService } from '../../src/database/internal-database.service.js';
 import { RuntimeDatabaseService } from '../../src/database/runtime-database.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
+import { createDeliveryIsolationSources } from './delivery-isolation.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -44,33 +46,13 @@ async function principal(companyId: string, permissions: string[], emailPrefix: 
 }
 
 async function createMultiPartnerFixture() {
-  const rows = (await owner.query(`
-    SELECT rl.commercial_commitment_line_id, rl.product_identity_id, rl.unit_id,
-           rl.approved_purchase_cost_snapshot_id, rl.purchase_source_id,
-           rl.supplier_company_id, rl.currency_code, rl.unit_purchase_cost,
-           r.commercial_commitment_id, r.partner_company_id,
-           cc.id commitment_id, pi.category_id
-    FROM procurement_release_lines rl
-    JOIN procurement_releases r ON r.id=rl.release_id
-    JOIN commercial_commitments cc ON cc.id=r.commercial_commitment_id
-    JOIN product_identities pi ON pi.id=rl.product_identity_id
-    WHERE rl.released_quantity>=20
-    ORDER BY rl.created_at DESC
-    LIMIT 250
-  `)).rows;
-  let first: any;
-  let second: any;
-  for (const row of rows) {
-    if (!first) { first = row; continue; }
-    if (row.partner_company_id !== first.partner_company_id) { second = row; break; }
-  }
-  if (!first || !second) throw new Error('no deterministic multi-partner source fixture');
-  partnerA = first.partner_company_id;
-  partnerB = second.partner_company_id;
-  source = first.purchase_source_id;
-  supplier = first.supplier_company_id;
-  commitmentA = first.commitment_id;
-  commitmentB = second.commitment_id;
+  const [first, second] = await createDeliveryIsolationSources(owner);
+  partnerA = first.partnerCompanyId;
+  partnerB = second.partnerCompanyId;
+  source = first.purchaseSourceId;
+  supplier = first.supplierCompanyId;
+  commitmentA = first.commitmentId;
+  commitmentB = second.commitmentId;
   const po = id();
   poId = po;
   const poLineA = id();
@@ -84,18 +66,18 @@ async function createMultiPartnerFixture() {
   const confirmationA = id();
   const eventA = id();
   const eventB = id();
-  await owner.query(`INSERT INTO supplier_purchase_orders(id,purchase_source_id,supplier_company_id,currency_code,status,created_by) VALUES($1,$2,$3,$4,'DRAFT',$5)`, [po, source, supplier, first.currency_code, scoActor]);
-  await owner.query(`INSERT INTO supplier_purchase_order_lines(id,supplier_purchase_order_id,demand_origin,product_identity_id,unit_id,ordered_quantity,actual_unit_purchase_cost,currency_code) VALUES($1,$2,'RELEASED_DEMAND',$3,$4,20,$5,$6),($7,$2,'RELEASED_DEMAND',$8,$9,20,$10,$6)`, [poLineA, po, first.product_identity_id, first.unit_id, first.unit_purchase_cost, first.currency_code, poLineB, second.product_identity_id, second.unit_id, second.unit_purchase_cost]);
-  await owner.query(`INSERT INTO procurement_releases(id,commercial_commitment_id,partner_company_id,total_required,currency_code) VALUES($1,$2,$3,20,$4),($5,$6,$7,20,$4)`, [releaseA, commitmentA, partnerA, first.currency_code, releaseB, commitmentB, partnerB]);
-  await owner.query(`INSERT INTO procurement_release_lines(id,release_id,commercial_commitment_line_id,product_identity_id,released_quantity,unit_id,approved_purchase_cost_snapshot_id,purchase_source_id,supplier_company_id,currency_code,unit_purchase_cost) VALUES($1,$2,$3,$4,20,$5,$6,$7,$8,$9,$10),($11,$12,$13,$14,20,$15,$16,$17,$18,$19,$20)`, [lineA, releaseA, first.commercial_commitment_line_id, first.product_identity_id, first.unit_id, first.approved_purchase_cost_snapshot_id, first.purchase_source_id, first.supplier_company_id, first.currency_code, first.unit_purchase_cost, lineB, releaseB, second.commercial_commitment_line_id, second.product_identity_id, second.unit_id, second.approved_purchase_cost_snapshot_id, second.purchase_source_id, second.supplier_company_id, second.currency_code, second.unit_purchase_cost]);
-  await owner.query(`INSERT INTO supplier_po_release_line_allocations(id,supplier_purchase_order_line_id,procurement_release_line_id,allocated_quantity,approved_purchase_cost_snapshot_id,original_purchase_source_id,approved_unit_purchase_cost) VALUES($1,$2,$3,20,$4,$5,$6),($7,$8,$9,20,$10,$11,$12)`, [allocationA, poLineA, lineA, first.approved_purchase_cost_snapshot_id, source, first.unit_purchase_cost, allocationB, poLineB, lineB, second.approved_purchase_cost_snapshot_id, source, second.unit_purchase_cost]);
+  await owner.query(`INSERT INTO supplier_purchase_orders(id,purchase_source_id,supplier_company_id,currency_code,status,created_by) VALUES($1,$2,$3,$4,'DRAFT',$5)`, [po, source, supplier, first.currencyCode, scoActor]);
+  await owner.query(`INSERT INTO supplier_purchase_order_lines(id,supplier_purchase_order_id,demand_origin,product_identity_id,unit_id,ordered_quantity,actual_unit_purchase_cost,currency_code) VALUES($1,$2,'RELEASED_DEMAND',$3,$4,20,$5,$6),($7,$2,'RELEASED_DEMAND',$8,$9,20,$10,$6)`, [poLineA, po, first.productIdentityId, first.unitId, first.unitPurchaseCost, first.currencyCode, poLineB, second.productIdentityId, second.unitId, second.unitPurchaseCost]);
+  await owner.query(`INSERT INTO procurement_releases(id,commercial_commitment_id,partner_company_id,total_required,currency_code) VALUES($1,$2,$3,20,$4),($5,$6,$7,20,$4)`, [releaseA, commitmentA, partnerA, first.currencyCode, releaseB, commitmentB, partnerB]);
+  await owner.query(`INSERT INTO procurement_release_lines(id,release_id,commercial_commitment_line_id,product_identity_id,released_quantity,unit_id,approved_purchase_cost_snapshot_id,purchase_source_id,supplier_company_id,currency_code,unit_purchase_cost) VALUES($1,$2,$3,$4,20,$5,$6,$7,$8,$9,$10),($11,$12,$13,$14,20,$15,$16,$17,$18,$19,$20)`, [lineA, releaseA, first.commitmentLineId, first.productIdentityId, first.unitId, first.approvedPurchaseCostSnapshotId, first.purchaseSourceId, first.supplierCompanyId, first.currencyCode, first.unitPurchaseCost, lineB, releaseB, second.commitmentLineId, second.productIdentityId, second.unitId, second.approvedPurchaseCostSnapshotId, second.purchaseSourceId, second.supplierCompanyId, second.currencyCode, second.unitPurchaseCost]);
+  await owner.query(`INSERT INTO supplier_po_release_line_allocations(id,supplier_purchase_order_line_id,procurement_release_line_id,allocated_quantity,approved_purchase_cost_snapshot_id,original_purchase_source_id,approved_unit_purchase_cost) VALUES($1,$2,$3,20,$4,$5,$6),($7,$8,$9,20,$10,$11,$12)`, [allocationA, poLineA, lineA, first.approvedPurchaseCostSnapshotId, source, first.unitPurchaseCost, allocationB, poLineB, lineB, second.approvedPurchaseCostSnapshotId, source, second.unitPurchaseCost]);
   await owner.query(`INSERT INTO supplier_po_confirmations(id,supplier_purchase_order_id,created_by) VALUES($1,$2,$3)`, [confirmationA, po, scoActor]);
   await owner.query(`INSERT INTO supplier_po_line_confirmation_events(id,supplier_po_confirmation_id,supplier_purchase_order_line_id,confirmed_quantity_delta,promised_delivery_date,actor_user_id) VALUES($1,$2,$3,20,current_date+20,$4),($5,$2,$6,20,current_date+25,$4)`, [eventA, confirmationA, poLineA, scoActor, eventB, poLineB]);
   const siteA = await internal.createPartnerDeliverySite(scoActor, partnerA, null, 'Partner A Gate', { city: 'A-City', street: 'A-Street' }, { name: 'A Receiver' }, id());
   const siteB = await internal.createPartnerDeliverySite(scoActor, partnerB, null, 'Partner B Gate', { city: 'B-City', street: 'B-Street' }, { name: 'B Receiver' }, id());
   trancheA = await internal.createSupplierPODeliveryTranche(scoActor, allocationA, siteA, eventA, 20, id());
   trancheB = await internal.createSupplierPODeliveryTranche(scoActor, allocationB, siteB, eventB, 20, id());
-  return { allocationA, allocationB, poLineA, poLineB, eventA, eventB, siteA, siteB, categoryA: first.category_id, categoryB: second.category_id };
+  return { allocationA, allocationB, poLineA, poLineB, eventA, eventB, siteA, siteB, categoryA: first.categoryId, categoryB: second.categoryId };
 }
 
 describe('Batch 9.6.4-B delivery projections and disclosure boundaries', () => {
@@ -117,6 +99,8 @@ describe('Batch 9.6.4-B delivery projections and disclosure boundaries', () => {
     if (otherSource && otherCategory) await owner.query(`INSERT INTO procurement_engineer_scope_assignments(id,actor_user_id,purchase_source_id,product_category_id,status,assigned_by) VALUES($1,$2,$3,$4,'ACTIVE',$5)`, [id(), wrongScopeActor, otherSource, otherCategory, scoActor]);
     partnerAActor = await principal(partnerA, ['partner_delivery_projection.read'], 'b-partner-a');
     partnerBActor = await principal(partnerB, ['partner_delivery_projection.read'], 'b-partner-b');
+    await establishClassDPartnerEligibility(owner, partnerAActor, partnerA);
+    await establishClassDPartnerEligibility(owner, partnerBActor, partnerB);
     dualActor = await principal(partnerA, ['partner_delivery_projection.read'], 'b-dual');
     const dualMembership = id();
     await owner.query(`INSERT INTO "CompanyMembership"(id,"userId","companyId",status) VALUES($1,$2,$3,'ACTIVE')`, [dualMembership, dualActor, supplier]);
@@ -124,6 +108,7 @@ describe('Batch 9.6.4-B delivery projections and disclosure boundaries', () => {
     await owner.query(`INSERT INTO "Role"(id,company_id,code,name) VALUES($1,$2,$3,$3),($4,$5,$6,$6)`, [dualRole, supplier, `b-dual-supplier-${dualRole}`, id(), partnerA, `b-dual-partner-${dualRole}`]);
     await owner.query(`INSERT INTO "MembershipRole"(id,company_id,membership_id,role_id) VALUES($1,$2,$3,$4)`, [id(), supplier, dualMembership, dualRole]);
     await owner.query(`INSERT INTO "RolePermission"(id,company_id,role_id,permission_id) SELECT $1,$2,$3,id FROM "Permission" WHERE code='supplier_po.delivery_schedule.read_assigned'`, [id(), supplier, dualRole]);
+    await establishClassDPartnerEligibility(owner, dualActor, partnerA);
     supplierActor = await principal(supplier, ['supplier_po.delivery_schedule.read_assigned'], 'b-supplier');
   });
   afterAll(async () => { await internal.onModuleDestroy(); await runtime.onModuleDestroy(); await owner.end(); });

@@ -364,8 +364,8 @@ describe('SR-01/SR-02 internal gateway security remediation', () => {
 
     it('partnership workflow succeeds', async () => {
       const partnerCompany = id();
-      await owner.query("INSERT INTO \"Company\"(id,name,type) VALUES ($1,'New Partner','PARTNER')", [partnerCompany]);
-      const created = (await internalPool.query('SELECT * FROM public.internal_partnership_create($1,$2,$3)', [actor, partnerCompany, 'BUYER_PARTNERSHIP'])).rows[0];
+      await owner.query("INSERT INTO \"Company\"(id,name,type) VALUES ($1,'New Supplier','SUPPLIER')", [partnerCompany]);
+      const created = (await internalPool.query('SELECT * FROM public.internal_partnership_create($1,$2,$3)', [actor, partnerCompany, 'SUPPLIER_PARTNERSHIP'])).rows[0];
       expect(created.status).toBe('UNDER_REVIEW');
       await owner.query("UPDATE company_partnerships SET status='APPROVED' WHERE id=$1", [created.id]);
       const activated = (await internalPool.query('SELECT * FROM public.internal_partnership_activate($1,$2)', [actor, created.id])).rows[0];

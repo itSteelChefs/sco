@@ -55,11 +55,13 @@ model Company {
   updatedAt   DateTime            @updatedAt @db.Timestamptz(6)
   memberships CompanyMembership[]
   partnerships CompanyPartnership[]
+  qualificationApplications QualificationApplication[]
   procurementIntelligencePurposeDecisions ProcurementIntelligencePurposeDecision[]
 }
 
 model QualificationApplication {
   id String @id @default(uuid()) @db.Uuid
+  companyId String? @map("company_id") @db.Uuid
   legalName String @map("legal_name")
   contactEmail String @map("contact_email")
   status QualificationStatus @default(APPLICATION)
@@ -69,6 +71,10 @@ model QualificationApplication {
   decisionReason String? @map("decision_reason")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  events QualificationApplicationEvent[]
+  partnerships CompanyPartnership[]
+  @@index([companyId, createdAt(sort: Desc)])
   @@map("qualification_applications")
 }
 
@@ -82,12 +88,124 @@ model CompanyPartnership {
   activeFrom DateTime? @map("active_from") @db.Timestamptz(6)
   suspendedAt DateTime? @map("suspended_at") @db.Timestamptz(6)
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  decisionReason String? @map("decision_reason")
+  suspendedBy String? @map("suspended_by") @db.Uuid
+  revokedBy String? @map("revoked_by") @db.Uuid
+  qualificationApplicationId String? @map("qualification_application_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  @@unique([companyId, type])
+  qualificationApplication QualificationApplication? @relation(fields: [qualificationApplicationId], references: [id], onDelete: Restrict)
+  events CompanyPartnershipEvent[]
   @@index([companyId, status])
   @@map("company_partnerships")
+}
+
+model QualificationApplicationEvent {
+  id String @id @default(uuid()) @db.Uuid
+  qualificationApplicationId String @map("qualification_application_id") @db.Uuid
+  companyId String? @map("company_id") @db.Uuid
+  fromStatus String? @map("from_status")
+  toStatus String @map("to_status")
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String?
+  correlationId String @map("correlation_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  qualificationApplication QualificationApplication @relation(fields: [qualificationApplicationId], references: [id], onDelete: Restrict)
+  @@map("qualification_application_events")
+}
+
+model CompanyPartnershipEvent {
+  id String @id @default(uuid()) @db.Uuid
+  partnershipId String @map("partnership_id") @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  fromStatus String? @map("from_status")
+  toStatus String @map("to_status")
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String?
+  correlationId String @map("correlation_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  partnership CompanyPartnership @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+  @@map("company_partnership_events")
+}
+
+model PartnerAgreementPolicyVersion {
+  id String @id @default(uuid()) @db.Uuid
+  agreementType String @map("agreement_type")
+  versionCode String @map("version_code")
+  contentText String @map("content_text")
+  contentSha256 String @map("content_sha256")
+  required Boolean
+  effectiveAt DateTime @map("effective_at") @db.Timestamptz(6)
+  acceptancePermissionCode String @map("acceptance_permission_code")
+  reacceptanceRequired Boolean @map("reacceptance_required")
+  suspensionEffect String @map("suspension_effect")
+  terminationEffect String @map("termination_effect")
+  retentionClassification String @map("retention_classification")
+  state String @default("DRAFT")
+  supersedesPolicyId String? @map("supersedes_policy_id") @db.Uuid
+  supersededByPolicyId String? @map("superseded_by_policy_id") @db.Uuid
+  supersededAt DateTime? @map("superseded_at") @db.Timestamptz(6)
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  acceptances PartnerAgreementAcceptance[]
+  events PartnerAgreementPolicyEvent[]
+  @@unique([agreementType, versionCode])
+  @@unique([agreementType, effectiveAt])
+  @@index([agreementType, effectiveAt(sort: Desc)])
+  @@map("partner_agreement_policy_versions")
+}
+
+model PartnerAgreementPolicyEvent {
+  id String @id @default(uuid()) @db.Uuid
+  policyVersionId String @map("policy_version_id") @db.Uuid
+  agreementType String @map("agreement_type")
+  versionCode String @map("version_code")
+  fromState String? @map("from_state")
+  toState String @map("to_state")
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String?
+  correlationId String @map("correlation_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  policyVersion PartnerAgreementPolicyVersion @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  @@map("partner_agreement_policy_events")
+}
+
+model PartnerAgreementAcceptance {
+  id String @id @default(uuid()) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  actorUserId String @map("actor_user_id") @db.Uuid
+  membershipId String @map("membership_id") @db.Uuid
+  policyVersionId String @map("policy_version_id") @db.Uuid
+  agreementType String @map("agreement_type")
+  versionCode String @map("version_code")
+  acceptedContentSha256 String @map("accepted_content_sha256")
+  authorityPermissionCode String @map("authority_permission_code")
+  authorityBasis Json @map("authority_basis")
+  purposeCode String @map("purpose_code")
+  idempotencyKey String @map("idempotency_key")
+  requestFingerprint String @map("request_fingerprint")
+  correlationId String @map("correlation_id") @db.Uuid
+  acceptedAt DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+  policyVersion PartnerAgreementPolicyVersion @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  events PartnerAgreementAcceptanceEvent[]
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, agreementType, acceptedAt(sort: Desc)])
+  @@map("partner_agreement_acceptances")
+}
+
+model PartnerAgreementAcceptanceEvent {
+  id String @id @default(uuid()) @db.Uuid
+  acceptanceId String @map("acceptance_id") @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  status String
+  actorUserId String @map("actor_user_id") @db.Uuid
+  reason String?
+  correlationId String @map("correlation_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  acceptance PartnerAgreementAcceptance @relation(fields: [acceptanceId], references: [id], onDelete: Restrict)
+  @@index([acceptanceId, createdAt(sort: Desc)])
+  @@map("partner_agreement_acceptance_events")
 }
 
 model CompanyMembership {

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool, PoolClient } from 'pg';
 import { InternalDatabaseService } from '../../src/database/internal-database.service.js';
 import { RuntimeDatabaseService } from '../../src/database/runtime-database.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -79,6 +80,8 @@ describe('Partner PO and Commercial Commitment', () => {
     await grant(creator, sco, 'pricing.create'); await grant(pricingApprover, sco, 'pricing.approve'); await grant(creator, sco, 'offer.create'); await grant(offerApprover, sco, 'offer.approve'); await grant(issuer, sco, 'offer.issue');
     await grant(verifier, sco, 'partner_po.verify'); await grant(verifier, sco, 'commercial_commitment.create');
     for (const actor of [partnerAActor, partnerBActor]) { await grant(actor, actor === partnerAActor ? partnerA : partnerB, 'offer.accept'); await grant(actor, actor === partnerAActor ? partnerA : partnerB, 'partner_po.submit'); await grant(actor, actor === partnerAActor ? partnerA : partnerB, 'partner_po.read'); await grant(actor, actor === partnerAActor ? partnerA : partnerB, 'commercial_commitment.read'); }
+    await establishClassDPartnerEligibility(owner, partnerAActor, partnerA);
+    await establishClassDPartnerEligibility(owner, partnerBActor, partnerB);
     const category = id(); unit = id(); product = id();
     await owner.query('INSERT INTO product_categories(id,code,name) VALUES($1,$2,\'PO\')', [category, `po-${category}`]);
     await owner.query('INSERT INTO unit_definitions(id,code,name,dimension) VALUES($1,$2,\'Each\',\'count\')', [unit, `po-${unit}`]);

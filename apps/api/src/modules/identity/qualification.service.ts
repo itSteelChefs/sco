@@ -1,28 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InternalDatabaseService } from '../../database/internal-database.service.js';
-import { AuditService } from '../audit/audit.service.js';
+import { withAdmissionErrors } from './partner-admission.errors.js';
 
 @Injectable()
 export class QualificationService {
-  constructor(
-    @Inject(InternalDatabaseService) private readonly internal: InternalDatabaseService,
-    @Inject(AuditService) private readonly audit: AuditService,
-  ) {}
+  constructor(@Inject(InternalDatabaseService) private readonly internal: InternalDatabaseService) {}
 
-  async create(actorUserId: string, legalName: string, contactEmail: string) {
-    const row = await this.internal.qualificationCreate(actorUserId, legalName, contactEmail);
-    await this.audit.record({ actorUserId, scope: 'SCO_INTERNAL', action: 'qualification.created', entityType: 'QualificationApplication', entityId: row.id });
-    return row;
+  create(actorUserId: string, legalName: string, contactEmail: string, companyId?: string) {
+    return withAdmissionErrors(() => companyId
+      ? this.internal.qualificationCreateForCompany(actorUserId, companyId, legalName, contactEmail)
+      : this.internal.qualificationCreate(actorUserId, legalName, contactEmail));
   }
 
-  async decide(actorUserId: string, id: string, status: 'APPROVED' | 'REJECTED', reason?: string) {
-    const row = await this.internal.qualificationDecide(actorUserId, id, status, reason);
-    if (!row) return null;
-    await this.audit.record({ actorUserId, scope: 'SCO_INTERNAL', action: `qualification.${status.toLowerCase()}`, entityType: 'QualificationApplication', entityId: id, metadata: { reasonProvided: Boolean(reason) } });
-    return row;
+  decide(actorUserId: string, id: string, status: 'APPROVED' | 'REJECTED', reason: string) {
+    return withAdmissionErrors(() => this.internal.qualificationDecide(actorUserId, id, status, reason));
   }
 
-  async list(actorUserId: string) {
-    return this.internal.qualificationList(actorUserId);
+  list(actorUserId: string) {
+    return withAdmissionErrors(() => this.internal.qualificationList(actorUserId));
   }
 }

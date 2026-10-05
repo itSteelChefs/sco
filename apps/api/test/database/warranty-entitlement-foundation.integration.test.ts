@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Client, Pool } from 'pg';
 import { InternalDatabaseService } from '../../src/database/internal-database.service.js';
 import { RuntimeDatabaseService } from '../../src/database/runtime-database.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -62,6 +63,7 @@ describe('Batch 11-C warranty entitlement foundation', () => {
     const sco = (await owner.query(`SELECT id FROM "Company" WHERE type='SCO' AND status='ACTIVE' LIMIT 1`)).rows[0].id;
     creator = await principal(sco, ['supplier_po.delivery_schedule.manage', 'delivery.execution.record', 'warranty.entitlement.register', 'warranty.entitlement.read_assigned'], 'warranty-internal');
     partnerActor = await principal(partnerCompany, ['warranty.entitlement.read', 'delivery.receipt.confirm', 'delivery.acceptance.confirm'], 'warranty-partner');
+    await establishClassDPartnerEligibility(owner, partnerActor, partnerCompany);
     const otherPartner = (await owner.query(`SELECT id FROM "Company" WHERE type='PARTNER' AND status='ACTIVE' AND id<>$1 LIMIT 1`, [partnerCompany])).rows[0];
     otherPartnerCompany = otherPartner?.id ?? id();
     if (!otherPartner) await owner.query(`INSERT INTO "Company"(id,name,type) VALUES($1,'Warranty Partner B','PARTNER')`, [otherPartnerCompany]);

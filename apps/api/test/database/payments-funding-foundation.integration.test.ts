@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
 import { InternalDatabaseService } from '../../src/database/internal-database.service.js';
 import { RuntimeDatabaseService } from '../../src/database/runtime-database.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -39,6 +40,7 @@ describe('Payments, funding, and cash exposure', () => {
     await grant(partnerActor,partner,'payment.record'); await grant(partnerActor,partner,'payment_requirement.read');
     await grant(otherActor,otherPartner,'payment.record'); await grant(otherActor,otherPartner,'payment_requirement.read');
     await grant(requirementCreator,sco,'payment_requirement.create'); await grant(paymentVerifier,sco,'payment.verify'); await grant(fundingManager,sco,'supplier_funding.manage'); await grant(fundingManager,sco,'internal_funding.approve'); await grant(evaluator,sco,'funding.evaluate'); await grant(evaluator,sco,'supplier_funding.read'); await grant(evaluator,sco,'cash_exposure.read');
+    await establishClassDPartnerEligibility(owner, partnerActor, partner);
     internal=new InternalDatabaseService(); runtime=new RuntimeDatabaseService();
   });
   afterAll(async()=>{await internal?.onModuleDestroy(); await runtime?.onModuleDestroy(); await owner.end();});

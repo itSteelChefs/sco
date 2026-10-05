@@ -19,11 +19,15 @@ import { ExecutionService } from './execution.service.js';
 import { SupplierNetworkService } from './supplier-network.service.js';
 import { RfqService } from './rfq.service.js';
 import { AlternativeProductService } from './alternative-product.service.js';
+import { PartnerAdmissionController } from './partner-admission.controller.js';
+import { PartnerAdmissionService } from './partner-admission.service.js';
+import { PartnerProcurementAccessGuard } from './partner-procurement-access.guard.js';
+import { PartnerProcurementAccessService } from './partner-procurement-access.service.js';
 
 @Module({
   imports: [DatabaseModule, AuditModule, RbacModule, forwardRef(() => AuthModule)],
-  controllers: [CompanyAccessController, TenantProbesController, QualificationController],
-  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, ScoInternalGuard, MembershipEligibilityService, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
-  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, MembershipEligibilityService, ScoInternalGuard, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
+  controllers: [CompanyAccessController, TenantProbesController, QualificationController, PartnerAdmissionController],
+  providers: [UsersService, CompaniesService, MembershipsService, TenantGuard, QualificationService, PartnershipsService, PartnerAdmissionService, PartnerProcurementAccessService, PartnerProcurementAccessGuard, ScoInternalGuard, MembershipEligibilityService, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
+  exports: [UsersService, CompaniesService, MembershipsService, QualificationService, PartnershipsService, PartnerAdmissionService, PartnerProcurementAccessService, PartnerProcurementAccessGuard, MembershipEligibilityService, ScoInternalGuard, PlanningService, ExecutionService, SupplierNetworkService, RfqService, AlternativeProductService],
 })
 export class IdentityModule {}

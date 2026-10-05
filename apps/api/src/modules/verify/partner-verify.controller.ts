@@ -10,9 +10,10 @@ import { RequirePurpose } from '../rbac/require-purpose.decorator.js';
 import { Tenant } from '../../common/tenant/tenant.decorator.js';
 import type { TenantContext } from '../../common/tenant/tenant-context.js';
 import { PartnerVerifyService } from './partner-verify.service.js';
+import { PartnerProcurementAccessGuard } from '../identity/partner-procurement-access.guard.js';
 
 @Controller('/api/v1/partner/verify')
-@UseGuards(AuthGuard, TenantGuard, PartnerCompanyGuard, PermissionGuard, PurposeGuard)
+@UseGuards(AuthGuard, TenantGuard, PartnerCompanyGuard, PermissionGuard, PurposeGuard, PartnerProcurementAccessGuard)
 export class PartnerVerifyController {
   constructor(@Inject(PartnerVerifyService) private readonly partnerVerify: PartnerVerifyService) {}
 

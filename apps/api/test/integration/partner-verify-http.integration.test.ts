@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import argon2 from 'argon2';
 import { AppModule } from '../../src/app.module.js';
+import { establishClassDPartnerEligibility } from '../database/class-d-eligibility.fixture.js';
 
 // P3: HTTP-level wiring test proving the actual guard/decorator chain (AuthGuard, TenantGuard, PartnerCompanyGuard,
 // PermissionGuard, @RequirePermission) on the real route, using the same Test.createTestingModule + Fastify
@@ -78,6 +79,7 @@ beforeAll(async () => {
   await owner.query('INSERT INTO "CompanyMembership"(id,"userId","companyId",status) VALUES($1,$2,$3,\'ACTIVE\')', [id(), writer, partnerCompany]);
 
   await grant(authorizedUser, partnerCompany, 'partner_verify.read');
+  await establishClassDPartnerEligibility(owner, authorizedUser, partnerCompany);
   await grant(scoUser, scoCompany, 'partner_verify.read');
   await grant(writer, partnerCompany, 'partner_verify.write');
   await grant(analyst, scoCompany, 'verify.analyst');

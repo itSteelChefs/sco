@@ -5,6 +5,7 @@ import { PartnerVerifyService } from '../../src/modules/verify/partner-verify.se
 import { TenantTransactionService } from '../../src/database/tenant-transaction.service.js';
 import { PartnerCompanyGuard } from '../../src/common/tenant/partner-company.guard.js';
 import { PurposeDecisionAuthorityService } from '../../src/modules/rbac/purpose-decision-authority.service.js';
+import { establishClassDPartnerEligibility } from './class-d-eligibility.fixture.js';
 
 const owner = new Pool({ connectionString: process.env.DATABASE_URL });
 const id = () => randomUUID();
@@ -194,6 +195,7 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
 
     await grant(writer, companyA, 'partner_verify.write');
     await grant(reader, companyA, 'partner_verify.read');
+    await establishClassDPartnerEligibility(owner, reader, companyA);
     await grant(suspendedReader, companyA, 'partner_verify.read');
     await grant(revokedReader, companyA, 'partner_verify.read');
     await grant(scoActor, internalCompany, 'partner_verify.read');

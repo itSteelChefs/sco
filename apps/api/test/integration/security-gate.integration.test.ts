@@ -9,6 +9,7 @@ import { RuntimeDatabaseService } from '../../src/database/runtime-database.serv
 import { TenantTransactionService } from '../../src/database/tenant-transaction.service.js';
 import { AuditService } from '../../src/modules/audit/audit.service.js';
 import { DocumentsService } from '../../src/modules/documents/documents.service.js';
+import { establishClassDPartnerEligibility } from '../database/class-d-eligibility.fixture.js';
 
 const companyA = '00000000-0000-4000-8000-000000000001';
 const companyB = '00000000-0000-4000-8000-000000000002';
@@ -101,6 +102,7 @@ beforeAll(async () => {
   await owner.query(`INSERT INTO "MembershipRole" (company_id, membership_id, role_id) VALUES
     ($1, $2, $3), ($1, $4, $5) ON CONFLICT (membership_id, role_id) DO NOTHING`,
     [companyA, membershipByUser[userA], roleByCode['partner-user'], membershipByUser[internalUser], roleByCode['operations']]);
+  await establishClassDPartnerEligibility(owner, userA, companyA);
 
   const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());

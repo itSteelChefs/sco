@@ -49,3 +49,13 @@ export type AuthorizationEvidence = {
 export type AuthorizationDecision =
   | { allowed: true; evidence: AuthorizationEvidence; purpose: PurposeRequirement }
   | { allowed: false; reason: AuthorizationDenyReason; evidence: AuthorizationEvidence };
+
+// Advisory, non-enforcing answer to "would this actor currently be eligible for this operation?". It deliberately has
+// no `allowed` field and a distinct `kind`, so it can never be passed where an enforcing AuthorizationDecision is
+// required. Only decide()/require() (the H1 guard path) authorize anything.
+export type AuthorizationAvailability = {
+  readonly kind: 'ADVISORY_AVAILABILITY';
+  readonly available: boolean;
+  readonly reason?: AuthorizationDenyReason;
+  readonly evidence: AuthorizationEvidence;
+};

@@ -9,6 +9,7 @@ import { PurposeAuthorizationService } from '../rbac/purpose-authorization.servi
 import type { PurposeRequirement } from '../rbac/purpose-registry.js';
 import { operationDescriptor } from './authorization-operations.js';
 import type {
+  AuthorizationAvailability,
   AuthorizationDecision,
   AuthorizationDenyReason,
   AuthorizationEvidence,
@@ -38,7 +39,19 @@ export class ResourceAuthorizationService {
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
-  async decide(request: ResourceAuthorizationRequest): Promise<AuthorizationDecision> {
+  decide(request: ResourceAuthorizationRequest): Promise<AuthorizationDecision> {
+    return this.evaluate(request, true);
+  }
+
+  // Read-only, advisory eligibility check of the same layers without a concrete resource and without audit. It returns
+  // a distinct non-enforcing type and never authorizes an operation; enforcement always goes through decide()/require()
+  // with the real resource.
+  async decideAvailability(tenant: ResourceAuthorizationRequest['tenant'], operation: unknown): Promise<AuthorizationAvailability> {
+    const decision = await this.evaluate({ tenant, operation }, false);
+    return { kind: 'ADVISORY_AVAILABILITY', available: decision.allowed, reason: decision.allowed ? undefined : decision.reason, evidence: decision.evidence };
+  }
+
+  private async evaluate(request: ResourceAuthorizationRequest, bindResource: boolean): Promise<AuthorizationDecision> {
     const evidence: AuthorizationEvidence = { operation: null, purposeCode: null, resourceKind: null, evaluatedLayers: [], failedLayer: null };
     const enter = (layer: AuthorizationLayer) => { evidence.evaluatedLayers.push(layer); };
     const deny = (layer: AuthorizationLayer, reason: AuthorizationDenyReason): AuthorizationDecision => {
@@ -60,10 +73,16 @@ export class ResourceAuthorizationService {
     evidence.purposeCode = descriptor.purpose.purpose;
     evidence.resourceKind = descriptor.resource.kind;
 
-    enter('RESOURCE_CONTEXT');
-    const resource = request.resource;
-    if (resource?.id === undefined || resource.id === null || resource.id === '') return deny('RESOURCE_CONTEXT', 'RESOURCE_CONTEXT_REQUIRED');
-    if (!isUuid(resource.id)) return deny('RESOURCE_CONTEXT', 'RESOURCE_CONTEXT_MALFORMED');
+    if (bindResource) {
+      enter('RESOURCE_CONTEXT');
+      const resource = request.resource;
+      if (descriptor.resource.routeParam === null) {
+        if (resource?.id !== undefined) return deny('RESOURCE_CONTEXT', 'RESOURCE_CONTEXT_MALFORMED');
+      } else {
+        if (resource?.id === undefined || resource.id === null || resource.id === '') return deny('RESOURCE_CONTEXT', 'RESOURCE_CONTEXT_REQUIRED');
+        if (!isUuid(resource.id)) return deny('RESOURCE_CONTEXT', 'RESOURCE_CONTEXT_MALFORMED');
+      }
+    }
 
     try {
       enter('MEMBERSHIP');
@@ -82,7 +101,12 @@ export class ResourceAuthorizationService {
       if (descriptor.companyTypes && !descriptor.companyTypes.includes(company.rows[0].type)) return deny('COMPANY', 'COMPANY_TYPE_INELIGIBLE');
 
       enter('PERMISSION');
-      if (!(await this.permissions.has(tenant, descriptor.permission))) return deny('PERMISSION', 'PERMISSION_MISSING');
+      const required = typeof descriptor.permission === 'string' ? [descriptor.permission] : descriptor.permission.anyOf;
+      let permitted = false;
+      for (const permission of required) {
+        if (await this.permissions.has(tenant, permission)) { permitted = true; break; }
+      }
+      if (!permitted) return deny('PERMISSION', 'PERMISSION_MISSING');
 
       enter('PURPOSE');
       if (request.purpose && !samePurposeRequirement(request.purpose, descriptor.purpose)) return deny('PURPOSE', 'PURPOSE_MISMATCH');
@@ -112,7 +136,7 @@ export class ResourceAuthorizationService {
     // Without a well-formed actor/company/operation there is no tenant to attribute evidence to.
     if (!tenant || !descriptor || !decision.evidence.evaluatedLayers.includes('OPERATION')) return;
     if (!isUuid(tenant.userId) || !isUuid(tenant.companyId)) return;
-    const resourceId = request.resource?.id;
+    const resourceId = descriptor.resource.routeParam === null ? tenant.companyId : request.resource?.id;
     const purposeFlow = descriptor.purpose.kind === 'CROSS_PURPOSE_FLOW' ? descriptor.purpose.flow : undefined;
     const base = {
       actorUserId: tenant.userId,
@@ -123,7 +147,7 @@ export class ResourceAuthorizationService {
       flowSource: purposeFlow?.source,
       flowTarget: purposeFlow?.target,
       flowCpfId: purposeFlow?.id,
-      entityType: descriptor.resource.kind,
+      entityType: descriptor.resource.kind === 'COMPANY' ? 'Company' : descriptor.resource.kind,
       entityId: isUuid(resourceId) ? resourceId : undefined,
     };
     const metadata = { operation: decision.evidence.operation, layers: decision.evidence.evaluatedLayers, failedLayer: decision.evidence.failedLayer };

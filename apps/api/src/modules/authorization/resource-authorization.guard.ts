@@ -31,7 +31,7 @@ export class ResourceAuthorizationGuard implements CanActivate {
     const decision = await this.authorization.require({
       tenant: request.tenantContext,
       operation,
-      resource: { id: request.params?.[descriptor.resource.routeParam] },
+      resource: descriptor.resource.routeParam === null ? undefined : { id: request.params?.[descriptor.resource.routeParam] },
       correlationId: request.correlationId,
     });
     const tenant = request.tenantContext as TenantContext;

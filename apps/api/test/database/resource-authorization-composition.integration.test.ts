@@ -5,11 +5,11 @@ import { Reflector } from '@nestjs/core';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthorizationModule } from '../../src/modules/authorization/authorization.module.js';
-import { AUTHORIZATION_OPERATION, operationDescriptor } from '../../src/modules/authorization/authorization-operations.js';
+import { AUTHORIZATION_OPERATION, operationDescriptor, registryInvariantViolations } from '../../src/modules/authorization/authorization-operations.js';
 import { AuthorizeOperation } from '../../src/modules/authorization/require-authorization.decorator.js';
 import { ResourceAuthorizationGuard } from '../../src/modules/authorization/resource-authorization.guard.js';
 import { ResourceAuthorizationService } from '../../src/modules/authorization/resource-authorization.service.js';
-import type { ResourceAuthorizationRequest } from '../../src/modules/authorization/resource-authorization.types.js';
+import type { AuthorizationDecision, ResourceAuthorizationRequest } from '../../src/modules/authorization/resource-authorization.types.js';
 import { PURPOSE_REQUIREMENT, PURPOSE_FLOW } from '../../src/modules/rbac/purpose-registry.js';
 import { AuditService } from '../../src/modules/audit/audit.service.js';
 import { MembershipsService } from '../../src/modules/identity/memberships.service.js';
@@ -263,6 +263,73 @@ describe('H1 composition DENY paths', () => {
     );
     const decision = await failing.decide(await verifyRequest(eligible, partnerOk));
     expect(decision).toMatchObject({ allowed: false, reason: 'AUTHORIZATION_UNAVAILABLE' });
+  });
+});
+
+describe('H2 extension: resource-less journey operation and availability evaluation', () => {
+  const JOURNEY = AUTHORIZATION_OPERATION.PARTNER_JOURNEY_READ;
+
+  it('registers the journey as a Class C, resource-less, any-of permission operation', () => {
+    const descriptor = operationDescriptor(JOURNEY);
+    expect(descriptor).toMatchObject({ partnerClassD: false, companyTypes: ['PARTNER'], resource: { kind: 'COMPANY', routeParam: null } });
+    expect(descriptor?.permission).toEqual({ anyOf: ['partner.portal.read', 'partner.admission.read'] });
+    expect(descriptor?.purpose).toEqual(PURPOSE_REQUIREMENT.AUTHORIZATION);
+  });
+
+  it('allows the journey without a resource and without Active Partner status, for either permitted grant', async () => {
+    const admissionOnly = await createUser('admission-only');
+    await createMembership(admissionOnly, partnerNoAgreement);
+    await grant(admissionOnly, partnerNoAgreement, 'partner.admission.read');
+    for (const [user, company] of [[membershipOnly, partnerOk], [admissionOnly, partnerNoAgreement]] as const) {
+      const decision = await authz.decide({ tenant: await context(user, company), operation: JOURNEY });
+      expect(decision.allowed).toBe(true);
+      expect(decision.evidence.evaluatedLayers).not.toContain('PARTNER_ELIGIBILITY');
+    }
+  });
+
+  it('denies the journey without either grant, for a non-Partner company, and when a resource id is supplied', async () => {
+    const bare = await createUser('journey-bare');
+    await createMembership(bare, partnerOk);
+    expect(await authz.decide({ tenant: await context(bare, partnerOk), operation: JOURNEY })).toMatchObject({ allowed: false, reason: 'PERMISSION_MISSING' });
+    expect(await authz.decide({ tenant: await context(scoWorker, sco), operation: JOURNEY })).toMatchObject({ allowed: false, reason: 'COMPANY_TYPE_INELIGIBLE' });
+    expect(await authz.decide({ tenant: await context(membershipOnly, partnerOk), operation: JOURNEY, resource: { id: id() } })).toMatchObject({ allowed: false, reason: 'RESOURCE_CONTEXT_MALFORMED' });
+  });
+
+  it('decideAvailability is advisory: a distinct non-enforcing type, same layers, no resource, never audited', async () => {
+    const auditBefore = (await owner.query(`SELECT count(*)::int AS count FROM audit_logs WHERE actor_user_id=$1`, [eligible])).rows[0].count;
+    const available = await authz.decideAvailability(await context(eligible, partnerOk), VERIFY);
+    expect(available).toMatchObject({ kind: 'ADVISORY_AVAILABILITY', available: true });
+    expect(available).not.toHaveProperty('allowed');
+    expect(available.evidence.evaluatedLayers).not.toContain('RESOURCE_CONTEXT');
+    expect(await authz.decideAvailability(await context(noAgreementUser, partnerNoAgreement), VERIFY)).toMatchObject({ available: false, reason: 'PARTNER_NOT_ELIGIBLE' });
+    expect(await authz.decideAvailability(await context(membershipOnly, partnerOk), EXTRACT)).toMatchObject({ available: false, reason: 'PERMISSION_MISSING' });
+    expect(await authz.decideAvailability(await context(eligible, partnerOk), 'nope')).toMatchObject({ available: false, reason: 'OPERATION_UNKNOWN' });
+    expect(await authz.decideAvailability(undefined, VERIFY)).toMatchObject({ available: false, reason: 'ACTOR_CONTEXT_REQUIRED' });
+    const auditAfter = (await owner.query(`SELECT count(*)::int AS count FROM audit_logs WHERE actor_user_id=$1`, [eligible])).rows[0].count;
+    expect(auditAfter).toBe(auditBefore);
+  });
+
+  it('advisory availability cannot be mistaken for an enforcing decision (compile-time) and enforcement is unaffected by it', async () => {
+    const advisory = await authz.decideAvailability(await context(eligible, partnerOk), VERIFY);
+    // @ts-expect-error an advisory availability is not assignable to an enforcing decision
+    const asDecision: AuthorizationDecision = advisory;
+    expect((asDecision as { allowed?: boolean }).allowed).toBeUndefined();
+    // Advisory availability for a Partner never substitutes for the real, resource-bound enforcement.
+    expect((await authz.decide({ tenant: await context(eligible, partnerOk), operation: VERIFY })).allowed).toBe(false);
+  });
+
+  it('registry invariant: no Class D operation may use an any-of permission (future contract change required)', () => {
+    for (const operation of Object.values(AUTHORIZATION_OPERATION)) {
+      const descriptor = operationDescriptor(operation);
+      expect(descriptor, operation).toBeDefined();
+      expect(registryInvariantViolations({ [operation]: descriptor! }), operation).toEqual([]);
+    }
+    expect(operationDescriptor(AUTHORIZATION_OPERATION.PARTNER_JOURNEY_READ)).toMatchObject({ partnerClassD: false });
+    const violating = {
+      synthetic: { permission: { anyOf: ['a', 'b'] }, purpose: PURPOSE_REQUIREMENT.VERIFY, companyTypes: null, partnerClassD: true, resource: { kind: 'COMPANY', routeParam: null } },
+    } as never;
+    expect(registryInvariantViolations(violating)).toEqual(['synthetic: Class D operations must use a single permission, not anyOf']);
+    expect(registryInvariantViolations({ ok: { permission: { anyOf: ['a'] }, partnerClassD: false } } as never)).toEqual([]);
   });
 });
 

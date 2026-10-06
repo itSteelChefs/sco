@@ -40,11 +40,13 @@ const journey = (companyId, stage = 'ACTIVE', enterable = true, procurementAcces
   capabilities: [],
 });
 
-async function setup(page, { contextHandler, journeyHandler, workspaceHandler } = {}) {
+async function setup(page, { contextHandler, journeyHandler, workspaceHandler, agreementsHandler } = {}) {
   await page.context().addCookies([{ name: 'sco_session', value: 'test-session', url: 'http://127.0.0.1:4102' }]);
   await page.route('**/api/v1/auth/context', (route) => contextHandler?.(route) ?? route.fulfill({ json: companies }));
   await page.route('**/api/v1/partner/journey', (route) => journeyHandler(route));
   await page.route('**/api/v1/partner/workspace/current', (route) => workspaceHandler?.(route));
+  await page.route('**/api/v1/partner/admission/agreements', (route) => agreementsHandler?.(route));
+  await page.route('**/api/v1/partner/admission/agreements/accept', (route) => agreementsHandler?.(route));
   await page.goto('/');
 }
 

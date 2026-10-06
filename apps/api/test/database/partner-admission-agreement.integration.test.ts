@@ -91,7 +91,7 @@ describe('Partner Admission and Agreement Evidence', () => {
     await owner.query('DELETE FROM procurement_needs WHERE company_id IN ($1,$2)', [partnerCompany, otherCompany]);
     await owner.query('DELETE FROM partner_agreement_acceptance_events WHERE company_id IN ($1,$2)', [partnerCompany, otherCompany]);
     await owner.query('DELETE FROM partner_agreement_acceptances WHERE company_id IN ($1,$2)', [partnerCompany, otherCompany]);
-    await owner.query('DELETE FROM partner_agreement_policy_events WHERE policy_version_id IN (SELECT id FROM partner_agreement_policy_versions WHERE agreement_type=\'BINDING_CONFIDENTIALITY\' AND created_by=$1)', [scoUser]);
+    await owner.query('DELETE FROM partner_agreement_policy_events WHERE policy_version_id IN (SELECT id FROM partner_agreement_policy_versions WHERE created_by=$1)', [scoUser]);
     await owner.query(
       `UPDATE partner_agreement_policy_versions
          SET supersedes_policy_id = CASE WHEN supersedes_policy_id IN (SELECT id FROM partner_agreement_policy_versions WHERE created_by=$1) THEN NULL ELSE supersedes_policy_id END,
@@ -152,12 +152,42 @@ describe('Partner Admission and Agreement Evidence', () => {
     expect(agreements.rows[0].content_text).toBe(initialContent);
     expect(agreements.rows[0]).not.toHaveProperty('content_sha256');
 
+    await owner.query(
+      'DELETE FROM "RolePermission" WHERE role_id=$1 AND permission_id=(SELECT id FROM "Permission" WHERE code=$2)',
+      [partnerRole, 'partner.agreement.accept'],
+    );
+    try {
+      await expect(withRuntime(partnerUser, partnerCompany, (client) =>
+        client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['BINDING_CONFIDENTIALITY', 'v1', `unauthorized-${id()}`, id()])))
+        .rejects.toThrow('AGREEMENT_ACCEPTANCE_AUTHORITY_FORBIDDEN');
+    } finally {
+      await grant(partnerRole, partnerCompany, 'partner.agreement.accept');
+    }
+
     const accepted = await withRuntime(partnerUser, partnerCompany, (client) =>
       client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['BINDING_CONFIDENTIALITY', 'v1', 'acceptance-retry-key-0001', id()]));
     originalAcceptedAt = accepted.rows[0].accepted_at;
     const retry = await withRuntime(partnerUser, partnerCompany, (client) =>
       client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['BINDING_CONFIDENTIALITY', 'v1', 'acceptance-retry-key-0001', id()]));
     expect(retry.rows[0].accepted_at).toEqual(originalAcceptedAt);
+    const beforeReconciliation = await owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM partner_agreement_acceptances WHERE company_id=$1) AS acceptances,
+         (SELECT count(*)::int FROM partner_agreement_acceptance_events WHERE company_id=$1) AS events,
+         (SELECT count(*)::int FROM audit_logs WHERE company_id=$1 AND action='agreement.accepted') AS audits`,
+      [partnerCompany],
+    );
+    const reconciled = await withRuntime(partnerUser, partnerCompany, (client) =>
+      client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['BINDING_CONFIDENTIALITY', 'v1', 'fresh-reconciliation-key-0001', id()]));
+    expect(reconciled.rows[0]).toMatchObject({ agreement_type: 'BINDING_CONFIDENTIALITY', version_code: 'v1', acceptance_status: 'ACCEPTED' });
+    const afterReconciliation = await owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM partner_agreement_acceptances WHERE company_id=$1) AS acceptances,
+         (SELECT count(*)::int FROM partner_agreement_acceptance_events WHERE company_id=$1) AS events,
+         (SELECT count(*)::int FROM audit_logs WHERE company_id=$1 AND action='agreement.accepted') AS audits`,
+      [partnerCompany],
+    );
+    expect(afterReconciliation.rows[0]).toEqual(beforeReconciliation.rows[0]);
     expect(await owner.query('SELECT count(*)::int AS count FROM partner_agreement_acceptances WHERE company_id=$1', [partnerCompany]).then((r) => r.rows[0].count)).toBe(1);
     expect(await owner.query('SELECT authority_basis FROM partner_agreement_acceptances WHERE company_id=$1', [partnerCompany]).then((r) => r.rows[0].authority_basis.requiredPermissions)).toContain('partner.agreement.accept');
   });
@@ -213,6 +243,62 @@ describe('Partner Admission and Agreement Evidence', () => {
     expect(allowed).toBe(false);
     await expect(owner.query('UPDATE partner_agreement_acceptance_events SET reason=\'rewritten\' WHERE company_id=$1', [partnerCompany]))
       .rejects.toThrow('ADMISSION_HISTORY_IMMUTABLE');
+  });
+
+  it('rejects optional agreements and refuses acceptance outside the permitted partnership lifecycle', async () => {
+    const optional = await internal.query(
+      `SELECT * FROM public.internal_partner_agreement_policy_create(
+        $1,'OPTIONAL_NOTICE',$2,$3,$4,'partner.agreement.accept',false,'NO_ACCESS_CHANGE','NO_ACCESS_CHANGE','TEST_OPTIONAL',false,$5
+      )`,
+      [scoUser, `optional-${id()}`, 'Optional notice', new Date(Date.now() - 60_000).toISOString(), id()],
+    );
+    await internal.query('SELECT * FROM public.internal_partner_agreement_policy_publish($1,$2,$3)', [scoUser, optional.rows[0].id, id()]);
+    await expect(withRuntime(partnerUser, partnerCompany, (client) =>
+      client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['OPTIONAL_NOTICE', optional.rows[0].version_code, `optional-${id()}`, id()])))
+      .rejects.toThrow('AGREEMENT_VERSION_NOT_CURRENT');
+
+    const concurrent = await internal.query(
+      `SELECT * FROM public.internal_partner_agreement_policy_create(
+        $1,'CONCURRENT_NOTICE',$2,$3,$4,'partner.agreement.accept',false,'NO_ACCESS_CHANGE','NO_ACCESS_CHANGE','TEST_CONCURRENT',true,$5
+      )`,
+      [scoUser, `concurrent-${id()}`, 'Concurrent acceptance notice', new Date(Date.now() - 60_000).toISOString(), id()],
+    );
+    await internal.query('SELECT * FROM public.internal_partner_agreement_policy_publish($1,$2,$3)', [scoUser, concurrent.rows[0].id, id()]);
+    const concurrentResults = await Promise.all([
+      withRuntime(partnerUser, partnerCompany, (client) => client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['CONCURRENT_NOTICE', concurrent.rows[0].version_code, `concurrent-a-${id()}`, id()])),
+      withRuntime(partnerUser, partnerCompany, (client) => client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['CONCURRENT_NOTICE', concurrent.rows[0].version_code, `concurrent-b-${id()}`, id()])),
+    ]);
+    expect(concurrentResults.every((result) => result.rows[0].acceptance_status === 'ACCEPTED')).toBe(true);
+    expect(await owner.query(`SELECT count(*)::int AS count FROM partner_agreement_acceptances WHERE company_id=$1 AND policy_version_id=$2`, [partnerCompany, concurrent.rows[0].id]).then((r) => r.rows[0].count)).toBe(1);
+
+    await owner.query(`UPDATE company_partnerships SET status='REVOKED' WHERE id=$1`, [partnershipId]);
+    await expect(withRuntime(partnerUser, partnerCompany, (client) =>
+      client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['BINDING_CONFIDENTIALITY', 'v1', `revoked-${id()}`, id()])))
+      .rejects.toThrow('AGREEMENT_ACCEPTANCE_AUTHORITY_FORBIDDEN');
+
+    await owner.query(`UPDATE company_partnerships SET status='SUSPENDED' WHERE id=$1`, [partnershipId]);
+    const suspendedBefore = await owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM partner_agreement_acceptances WHERE company_id=$1) AS acceptances,
+         (SELECT count(*)::int FROM partner_agreement_acceptance_events WHERE company_id=$1) AS events,
+         (SELECT count(*)::int FROM audit_logs WHERE company_id=$1 AND action='agreement.accepted') AS audits`,
+      [partnerCompany],
+    );
+    const suspendedKey = `suspended-${id()}`;
+    await expect(withRuntime(partnerUser, partnerCompany, (client) =>
+      client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['CONCURRENT_NOTICE', concurrent.rows[0].version_code, suspendedKey, id()])))
+      .rejects.toThrow('AGREEMENT_ACCEPTANCE_AUTHORITY_FORBIDDEN');
+    await expect(withRuntime(partnerUser, partnerCompany, (client) =>
+      client.query('SELECT * FROM public.partner_agreement_accept($1,$2,$3,$4)', ['CONCURRENT_NOTICE', concurrent.rows[0].version_code, suspendedKey, id()])))
+      .rejects.toThrow('AGREEMENT_ACCEPTANCE_AUTHORITY_FORBIDDEN');
+    const suspendedAfter = await owner.query(
+      `SELECT
+         (SELECT count(*)::int FROM partner_agreement_acceptances WHERE company_id=$1) AS acceptances,
+         (SELECT count(*)::int FROM partner_agreement_acceptance_events WHERE company_id=$1) AS events,
+         (SELECT count(*)::int FROM audit_logs WHERE company_id=$1 AND action='agreement.accepted') AS audits`,
+      [partnerCompany],
+    );
+    expect(suspendedAfter.rows[0]).toEqual(suspendedBefore.rows[0]);
   });
 
   it('uses a locked-down gateway role, FORCE RLS, fixed search_path, and no PUBLIC execute', async () => {

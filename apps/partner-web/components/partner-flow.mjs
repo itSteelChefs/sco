@@ -6,6 +6,14 @@ export function shouldShowProvisionAction(journey, workspace) {
   return workspace === null && shouldLoadWorkspace(journey);
 }
 
+export function shouldLoadAgreements(journey) {
+  return journey.nextAction?.code === 'ACCEPT_AGREEMENTS';
+}
+
+export function isActionableAgreement(agreement) {
+  return agreement.actionable === true;
+}
+
 export function classifyPartnerJourney(journey, workspace) {
   if (!shouldLoadWorkspace(journey)) {
     return { kind: 'JOURNEY_BLOCKED', reason: journey.experiences.find((experience) => experience.code === 'PARTNER_SHELL')?.reason };

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createRequestGeneration, classifyPartnerJourney, shouldLoadWorkspace, shouldShowProvisionAction } from '../components/partner-flow.mjs';
+import { createRequestGeneration, classifyPartnerJourney, isActionableAgreement, shouldLoadAgreements, shouldLoadWorkspace, shouldShowProvisionAction } from '../components/partner-flow.mjs';
 
 const journey = (overrides = {}) => ({
 	company: { id: 'company-a', name: 'Company A' },
@@ -54,6 +54,17 @@ test('Journey visibility does not imply Workspace entry or authorization', () =>
 	const denied = journey({ experiences: [{ code: 'PARTNER_SHELL', classification: 'C', enterable: false, reason: 'PERMISSION_REQUIRED' }] });
 	assert.equal(shouldLoadWorkspace(denied), false);
 	assert.equal(shouldShowProvisionAction(denied, null), false);
+});
+
+test('agreement activation loads only server-actionable agreements and never auto-accepts', () => {
+	const awaiting = journey({
+		nextAction: { code: 'ACCEPT_AGREEMENTS', owner: 'PARTNER', permitted: true },
+		capabilities: [{ code: 'AGREEMENT_ACCEPTANCE', classification: 'B', available: true }],
+	});
+	assert.equal(shouldLoadAgreements(awaiting), true);
+	assert.equal(isActionableAgreement({ actionable: true }), true);
+	assert.equal(isActionableAgreement({ actionable: false, required: true, acceptanceStatus: 'NOT_ACCEPTED' }), false);
+	assert.equal(isActionableAgreement({ required: true, acceptanceStatus: 'REACCEPTANCE_REQUIRED' }), false);
 });
 
 test('request generation invalidates delayed A responses after switching to B and back to A', () => {

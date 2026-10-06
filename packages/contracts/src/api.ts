@@ -19,6 +19,17 @@ export type PartnerJourney = {
 	experiences: Array<{ code: 'PARTNER_SHELL' | 'ONBOARDING' | 'PROCUREMENT'; classification: 'B' | 'C' | 'D'; enterable: boolean; reason?: PartnerJourneyReason }>;
 	capabilities: Array<{ code: 'AGREEMENT_ACCEPTANCE' | 'VERIFY_RESULT_READ' | 'PROCUREMENT_DOCUMENT_EXTRACTION'; classification: 'B' | 'D'; available: boolean; reason?: PartnerJourneyReason }>;
 };
+export type PartnerAgreement = {
+	agreementType: string;
+	version: string;
+	content: string;
+	effectiveAt: string;
+	required: boolean;
+	acceptanceStatus: string;
+	acceptedVersion: string | null;
+	actionable: boolean;
+};
+export type PartnerAgreementAcceptance = { agreementType: string; version: string; acceptedAt: string; status: string };
 export type PartnerWorkspaceCapabilityState = { capability: string; available: boolean; reason?: 'OPERATIONAL_ACCESS_RESTRICTED' };
 // capabilityStates is advisory display state only; it is never an authorization decision.
 export type PartnerWorkspace = { id: string; displayName: string; state: string; version: number; capabilities: string[]; capabilityStates?: PartnerWorkspaceCapabilityState[] };
@@ -66,6 +77,8 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 		company: (companyId: string) => request<CompanyProjection>('/api/v1/companies/current/me', { companyId }),
 		partner: (companyId: string) => request<{ companyId: string; membershipId: string }>('/api/v1/partner/me', { companyId }),
 		partnerJourney: (companyId: string, signal?: AbortSignal) => request<PartnerJourney>('/api/v1/partner/journey', { companyId, signal }),
+		partnerAgreements: (companyId: string, signal?: AbortSignal) => request<PartnerAgreement[]>('/api/v1/partner/admission/agreements', { companyId, signal }),
+		acceptPartnerAgreement: (companyId: string, body: { agreementType: string; versionCode: string; idempotencyKey: string }, signal?: AbortSignal) => request<PartnerAgreementAcceptance>('/api/v1/partner/admission/agreements/accept', { method: 'POST', companyId, body, signal }),
 		partnerWorkspace: (companyId: string, signal?: AbortSignal) => request<PartnerWorkspace | null>('/api/v1/partner/workspace/current', { companyId, signal }),
 		createPartnerWorkspace: (companyId: string, signal?: AbortSignal) => request<PartnerWorkspace>('/api/v1/partner/workspace/current', { method: 'POST', companyId, body: {}, signal }),
 		companies: (companyId: string, page = 1, pageSize = 25) => request<Page<{ id: string; name: string; type: string; status: string }>>(`/api/v1/internal/companies?page=${page}&pageSize=${pageSize}`, { companyId }),

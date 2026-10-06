@@ -9,6 +9,7 @@ import { CompaniesService } from '../identity/companies.service.js';
 import { PartnerAdmissionService } from '../identity/partner-admission.service.js';
 import { PartnerProcurementAccessService } from '../identity/partner-procurement-access.service.js';
 import { PermissionsService } from '../rbac/permissions.service.js';
+import { isAgreementAcceptanceLifecycleEligible } from './agreement-actionability.js';
 import type {
   JourneyNextActionCode,
   JourneyRelationship,
@@ -129,7 +130,8 @@ export class PartnerJourneyService {
           agreementType: agreement.agreementType,
           version: agreement.version,
           status: agreement.acceptanceStatus,
-          actionable: ACTIONABLE_AGREEMENT_STATUSES.has(agreement.acceptanceStatus),
+          actionable: ACTIONABLE_AGREEMENT_STATUSES.has(agreement.acceptanceStatus)
+            && isAgreementAcceptanceLifecycleEligible(status.partnershipStatus, status.qualificationStatus),
         })),
     };
   }

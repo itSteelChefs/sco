@@ -1,10 +1,10 @@
 'use client';
 
-import { type ActiveCompany, type PartnerJourney, type PartnerWorkspace, ApiClientError } from '@sco/contracts';
+import { type ActiveCompany, type PartnerAgreement, type PartnerJourney, type PartnerWorkspace, ApiClientError } from '@sco/contracts';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { classifyPartnerJourney, createRequestGeneration, shouldLoadWorkspace, shouldShowProvisionAction } from './partner-flow.mjs';
+import { classifyPartnerJourney, createRequestGeneration, isActionableAgreement, shouldLoadAgreements, shouldLoadWorkspace, shouldShowProvisionAction } from './partner-flow.mjs';
 import { EmptyState, ErrorState, LoadingState } from './product-state';
 
 export function PartnerContext() {
@@ -14,7 +14,9 @@ export function PartnerContext() {
   const [error, setError] = useState<string>();
   const [journey, setJourney] = useState<PartnerJourney>();
   const [workspace, setWorkspace] = useState<PartnerWorkspace | null>();
+  const [agreements, setAgreements] = useState<PartnerAgreement[]>();
   const [provisioning, setProvisioning] = useState(false);
+  const [acceptingAgreement, setAcceptingAgreement] = useState<string>();
   const [reload, setReload] = useState(0);
   const [contextReload, setContextReload] = useState(0);
   const gate = useRef(createRequestGeneration());
@@ -53,20 +55,31 @@ export function PartnerContext() {
   useEffect(() => {
     if (!selected) return;
     controller.current?.abort();
-    controller.current = new AbortController();
+    const requestController = new AbortController();
+    controller.current = requestController;
     const token = gate.current.begin(selected);
     setError(undefined);
     setJourney(undefined);
     setWorkspace(undefined);
+    setAgreements(undefined);
+    setAcceptingAgreement(undefined);
     provisioningRef.current = false;
     setProvisioning(false);
-    void api.partnerJourney(selected, controller.current.signal)
+    void api.partnerJourney(selected, requestController.signal)
       .then(async (currentJourney) => {
         if (!gate.current.isCurrent(token)) return;
         setJourney(currentJourney);
-        if (!shouldLoadWorkspace(currentJourney)) return;
-        const currentWorkspace = await api.partnerWorkspace(selected, controller.current?.signal);
-        if (gate.current.isCurrent(token)) setWorkspace(currentWorkspace);
+        const workspacePromise = shouldLoadWorkspace(currentJourney)
+          ? api.partnerWorkspace(selected, requestController.signal)
+          : Promise.resolve(undefined);
+        const agreementsPromise = shouldLoadAgreements(currentJourney)
+          ? api.partnerAgreements(selected, requestController.signal)
+          : Promise.resolve(undefined);
+        const [currentWorkspace, currentAgreements] = await Promise.all([workspacePromise, agreementsPromise]);
+        if (gate.current.isCurrent(token)) {
+          setWorkspace(currentWorkspace);
+          setAgreements(currentAgreements);
+        }
       })
       .catch((failure) => {
         if (failure?.name === 'AbortError' || !gate.current.isCurrent(token)) return;
@@ -79,19 +92,20 @@ export function PartnerContext() {
             : 'تعذر تحميل حالة الشراكة.');
         }
       });
-    return () => controller.current?.abort();
+    return () => requestController.abort();
   }, [selected, reload]);
 
   async function provisionWorkspace() {
     if (!selected || !journey || !shouldShowProvisionAction(journey, workspace ?? null) || provisioning || provisioningRef.current) return;
     controller.current?.abort();
-    controller.current = new AbortController();
+    const requestController = new AbortController();
+    controller.current = requestController;
     const token = gate.current.begin(selected);
     provisioningRef.current = true;
     setProvisioning(true);
     setError(undefined);
     try {
-      const created = await api.createPartnerWorkspace(selected, controller.current.signal);
+      const created = await api.createPartnerWorkspace(selected, requestController.signal);
       if (gate.current.isCurrent(token)) setWorkspace(created);
     } catch (failure) {
       if (failure?.name !== 'AbortError' && gate.current.isCurrent(token)) {
@@ -112,6 +126,40 @@ export function PartnerContext() {
     }
   }
 
+  async function acceptAgreement(agreement: PartnerAgreement) {
+    if (!selected || acceptingAgreement || !isActionableAgreement(agreement)) return;
+    controller.current?.abort();
+    const requestController = new AbortController();
+    controller.current = requestController;
+    const token = gate.current.begin(selected);
+    setAcceptingAgreement(agreement.agreementType);
+    setError(undefined);
+    try {
+      await api.acceptPartnerAgreement(selected, {
+        agreementType: agreement.agreementType,
+        versionCode: agreement.version,
+        idempotencyKey: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${agreement.agreementType}-${agreement.version}-${Date.now()}`,
+      }, requestController.signal);
+      if (!gate.current.isCurrent(token)) return;
+      const [refreshedAgreements, refreshedJourney] = await Promise.all([
+        api.partnerAgreements(selected, requestController.signal),
+        api.partnerJourney(selected, requestController.signal),
+      ]);
+      if (gate.current.isCurrent(token)) {
+        setAgreements(refreshedAgreements);
+        setJourney(refreshedJourney);
+      }
+    } catch (failure) {
+      if (failure?.name !== 'AbortError' && gate.current.isCurrent(token)) {
+        resetSensitiveState();
+        if (failure instanceof ApiClientError && failure.status === 401) router.replace('/login');
+        else setError(failure instanceof ApiClientError && failure.status === 403 ? 'لا تملك صلاحية قبول هذه الاتفاقية.' : 'تعذر تحديث حالة الاتفاقية.');
+      }
+    } finally {
+      if (gate.current.isCurrent(token)) setAcceptingAgreement(undefined);
+    }
+  }
+
   function resetSensitiveState() {
     controller.current?.abort();
     gate.current.invalidate();
@@ -119,6 +167,8 @@ export function PartnerContext() {
     setWorkspace(undefined);
     provisioningRef.current = false;
     setProvisioning(false);
+    setAgreements(undefined);
+    setAcceptingAgreement(undefined);
   }
 
   if (error) return <ErrorState message={error} onRetry={() => {
@@ -135,6 +185,7 @@ export function PartnerContext() {
   const flow = classifyPartnerJourney(journey, workspace);
   const shell = journey.experiences.find((experience) => experience.code === 'PARTNER_SHELL');
   const nextAction = journey.nextAction;
+  const actionableAgreements = (agreements ?? []).filter(isActionableAgreement);
   return <section aria-live="polite">
     {companySelector}
     <h2>{company.name}</h2>
@@ -143,6 +194,12 @@ export function PartnerContext() {
     {journey.operational.procurementAccess === 'RESTRICTED' && <p>الوصول التشغيلي مقيّد حاليًا. لا يؤثر ذلك على مساحة العمل الأساسية.</p>}
     {!shell?.enterable && <p role="alert">مساحة العمل الأساسية غير متاحة لهذا الحساب حاليًا.</p>}
     {flow.kind === 'JOURNEY_BLOCKED' && <p role="alert">لا يمكن الدخول إلى مساحة العمل بهذه الشركة.</p>}
+    {shouldLoadAgreements(journey) && agreements === undefined && <LoadingState />}
+    {actionableAgreements.map((agreement) => <article key={`${agreement.agreementType}:${agreement.version}`}>
+      <h3>{agreement.agreementType} — {agreement.version}</h3>
+      <p>{agreement.content}</p>
+      <button type="button" onClick={() => void acceptAgreement(agreement)} disabled={Boolean(acceptingAgreement)}>{acceptingAgreement === agreement.agreementType ? 'جارٍ تسجيل القبول...' : 'أوافق على هذه الاتفاقية'}</button>
+    </article>)}
     {flow.kind !== 'JOURNEY_BLOCKED' && <>
       <h3>مساحة عمل الشريك</h3>
       {flow.kind === 'WORKSPACE_LOADING' ? <LoadingState /> : workspace === null ? <>

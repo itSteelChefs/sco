@@ -3,6 +3,22 @@ export type Page<T> = { items: T[]; page: number; pageSize: number; total?: numb
 
 export type ActiveCompany = { id: string; name: string; type: string };
 export type CompanyProjection = { id: string; name: string; type: string; tenantId: string };
+export type PartnerJourneyReason = 'PERMISSION_REQUIRED' | 'RELATIONSHIP_NOT_ACTIVE' | 'AGREEMENT_REQUIRED' | 'NOT_AVAILABLE';
+export type PartnerJourney = {
+	company: { id: string; name: string };
+	actor: { userId: string; membershipId: string };
+	operational: { procurementAccess: 'AVAILABLE' | 'RESTRICTED'; reason?: PartnerJourneyReason };
+	relationship: {
+		stage: 'REGISTRATION' | 'QUALIFICATION' | 'AGREEMENT' | 'APPROVAL' | 'ONBOARDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
+		qualification: 'NONE' | 'APPLICATION' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+		partnership: 'NONE' | 'UNDER_REVIEW' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
+		agreementsSatisfied: boolean;
+		pendingAgreements: Array<{ agreementType: string; version: string; status: string; actionable: boolean }>;
+	} | null;
+	nextAction: { code: 'ACCEPT_AGREEMENTS' | 'AWAIT_SCO_REVIEW' | 'CONTACT_SCO' | 'NONE'; owner: 'PARTNER' | 'SCO' | 'NONE'; permitted: boolean } | null;
+	experiences: Array<{ code: 'PARTNER_SHELL' | 'ONBOARDING' | 'PROCUREMENT'; classification: 'B' | 'C' | 'D'; enterable: boolean; reason?: PartnerJourneyReason }>;
+	capabilities: Array<{ code: 'AGREEMENT_ACCEPTANCE' | 'VERIFY_RESULT_READ' | 'PROCUREMENT_DOCUMENT_EXTRACTION'; classification: 'B' | 'D'; available: boolean; reason?: PartnerJourneyReason }>;
+};
 export type PartnerWorkspaceCapabilityState = { capability: string; available: boolean; reason?: 'OPERATIONAL_ACCESS_RESTRICTED' };
 // capabilityStates is advisory display state only; it is never an authorization decision.
 export type PartnerWorkspace = { id: string; displayName: string; state: string; version: number; capabilities: string[]; capabilityStates?: PartnerWorkspaceCapabilityState[] };
@@ -18,7 +34,7 @@ export class ApiClientError extends Error {
 	}
 }
 
-type RequestOptions = { method?: string; companyId?: string; body?: unknown };
+type RequestOptions = { method?: string; companyId?: string; body?: unknown; signal?: AbortSignal };
 type ApiClientOptions = { baseUrl?: string; fetchImpl?: typeof fetch };
 
 export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOptions = {}) {
@@ -34,6 +50,7 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 				...(correlationId ? { 'x-correlation-id': correlationId } : {}),
 			},
 			...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+			signal: options.signal,
 		});
 		if (!response.ok) {
 			const payload = await response.json().catch(() => ({})) as Partial<ErrorEnvelope>;
@@ -45,11 +62,12 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 	return {
 		login: (email: string, password: string) => request<{ ok: true }>('/api/v1/auth/login', { method: 'POST', body: { email, password } }),
 		logout: () => request<{ ok: true }>('/api/v1/auth/logout', { method: 'POST', body: {} }),
-		context: () => request<{ companies: ActiveCompany[] }>('/api/v1/auth/context'),
+		context: (signal?: AbortSignal) => request<{ companies: ActiveCompany[] }>('/api/v1/auth/context', { signal }),
 		company: (companyId: string) => request<CompanyProjection>('/api/v1/companies/current/me', { companyId }),
 		partner: (companyId: string) => request<{ companyId: string; membershipId: string }>('/api/v1/partner/me', { companyId }),
-		partnerWorkspace: (companyId: string) => request<PartnerWorkspace | null>('/api/v1/partner/workspace/current', { companyId }),
-		createPartnerWorkspace: (companyId: string) => request<PartnerWorkspace>('/api/v1/partner/workspace/current', { method: 'POST', companyId, body: {} }),
+		partnerJourney: (companyId: string, signal?: AbortSignal) => request<PartnerJourney>('/api/v1/partner/journey', { companyId, signal }),
+		partnerWorkspace: (companyId: string, signal?: AbortSignal) => request<PartnerWorkspace | null>('/api/v1/partner/workspace/current', { companyId, signal }),
+		createPartnerWorkspace: (companyId: string, signal?: AbortSignal) => request<PartnerWorkspace>('/api/v1/partner/workspace/current', { method: 'POST', companyId, body: {}, signal }),
 		companies: (companyId: string, page = 1, pageSize = 25) => request<Page<{ id: string; name: string; type: string; status: string }>>(`/api/v1/internal/companies?page=${page}&pageSize=${pageSize}`, { companyId }),
 	};
 }

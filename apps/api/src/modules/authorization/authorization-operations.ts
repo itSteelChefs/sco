@@ -4,6 +4,8 @@ export const AUTHORIZATION_OPERATION = {
   PARTNER_VERIFY_RESULT_READ: 'partner_verify.result.read',
   PROCUREMENT_DOCUMENT_EXTRACT: 'procurement_document.extract',
   PARTNER_JOURNEY_READ: 'partner_journey.read',
+  PARTNER_WORKSPACE_READ: 'partner_workspace.read',
+  PARTNER_WORKSPACE_PROVISION: 'partner_workspace.provision',
 } as const;
 
 export type AuthorizationOperation = (typeof AUTHORIZATION_OPERATION)[keyof typeof AUTHORIZATION_OPERATION];
@@ -42,6 +44,23 @@ const registry: Readonly<Record<AuthorizationOperation, OperationDescriptor>> = 
   // Onboarding Partners may hold partner.admission.read before partner.portal.read is configured.
   [AUTHORIZATION_OPERATION.PARTNER_JOURNEY_READ]: Object.freeze({
     permission: Object.freeze({ anyOf: Object.freeze(['partner.portal.read', 'partner.admission.read']) }),
+    purpose: PURPOSE_REQUIREMENT.AUTHORIZATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: false,
+    resource: Object.freeze({ kind: 'COMPANY', routeParam: null }),
+  }),
+  // Class C basic Partner private workspace shell. Deliberately not Class D: no ACTIVE relationship, agreement,
+  // operational access or entitlement is required, so onboarding/remediation context survives a RESTRICTED state.
+  [AUTHORIZATION_OPERATION.PARTNER_WORKSPACE_READ]: Object.freeze({
+    permission: 'partner.portal.read',
+    purpose: PURPOSE_REQUIREMENT.AUTHORIZATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: false,
+    resource: Object.freeze({ kind: 'COMPANY', routeParam: null }),
+  }),
+  // Idempotent "ensure the company's one private workspace exists". Not workspace administration or an update.
+  [AUTHORIZATION_OPERATION.PARTNER_WORKSPACE_PROVISION]: Object.freeze({
+    permission: 'partner.portal.read',
     purpose: PURPOSE_REQUIREMENT.AUTHORIZATION,
     companyTypes: Object.freeze(['PARTNER']),
     partnerClassD: false,

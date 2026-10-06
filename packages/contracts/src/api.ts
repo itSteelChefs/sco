@@ -3,7 +3,9 @@ export type Page<T> = { items: T[]; page: number; pageSize: number; total?: numb
 
 export type ActiveCompany = { id: string; name: string; type: string };
 export type CompanyProjection = { id: string; name: string; type: string; tenantId: string };
-export type PartnerWorkspace = { id: string; displayName: string; state: string; version: number; capabilities: string[] };
+export type PartnerWorkspaceCapabilityState = { capability: string; available: boolean; reason?: 'OPERATIONAL_ACCESS_RESTRICTED' };
+// capabilityStates is advisory display state only; it is never an authorization decision.
+export type PartnerWorkspace = { id: string; displayName: string; state: string; version: number; capabilities: string[]; capabilityStates?: PartnerWorkspaceCapabilityState[] };
 export type ApiErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'VALIDATION_FAILED' | 'INTERNAL_ERROR' | string;
 
 export class ApiClientError extends Error {

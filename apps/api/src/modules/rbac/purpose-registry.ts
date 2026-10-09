@@ -17,6 +17,7 @@ export const PURPOSE = {
   AUDIT: 'PUR-16',
   PROCUREMENT_INTELLIGENCE: 'PUR-17',
   STUDIES: 'PUR-18',
+  COLLABORATION: 'PUR-19',
 } as const;
 
 export type PurposeCode = (typeof PURPOSE)[keyof typeof PURPOSE];
@@ -85,6 +86,7 @@ export const PURPOSE_REQUIREMENT = {
     purpose: PURPOSE.PROCUREMENT_INTELLIGENCE,
     flow: PURPOSE_FLOW.CPF_33,
   },
+  COLLABORATION: { kind: 'PURPOSE_ONLY', purpose: PURPOSE.COLLABORATION },
 } as const satisfies Record<string, PurposeRequirement>;
 
 export function isPurposeRequirement(value: unknown): value is PurposeRequirement {

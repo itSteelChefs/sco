@@ -6,10 +6,18 @@ export const AUTHORIZATION_OPERATION = {
   PARTNER_JOURNEY_READ: 'partner_journey.read',
   PARTNER_WORKSPACE_READ: 'partner_workspace.read',
   PARTNER_WORKSPACE_PROVISION: 'partner_workspace.provision',
+  PARTNER_COLLABORATION_LIST: 'partner_collaboration.list',
+  PARTNER_COLLABORATION_CREATE: 'partner_collaboration.create',
+  PARTNER_COLLABORATION_READ: 'partner_collaboration.read',
+  PARTNER_COLLABORATION_ARCHIVE: 'partner_collaboration.archive',
+  PARTNER_COLLABORATION_PARTICIPATION_GRANT: 'partner_collaboration_participation.grant',
+  PARTNER_COLLABORATION_PARTICIPATION_REVOKE: 'partner_collaboration_participation.revoke',
+  PARTNER_COLLABORATION_PARTICIPATION_JOIN: 'partner_collaboration_participation.join',
+  PARTNER_COLLABORATION_PARTICIPATION_LEAVE: 'partner_collaboration_participation.leave',
 } as const;
 
 export type AuthorizationOperation = (typeof AUTHORIZATION_OPERATION)[keyof typeof AUTHORIZATION_OPERATION];
-export type ResourceKind = 'VERIFY_REQUEST' | 'PROCUREMENT_DOCUMENT' | 'COMPANY';
+export type ResourceKind = 'VERIFY_REQUEST' | 'PROCUREMENT_DOCUMENT' | 'COMPANY' | 'COLLABORATION' | 'PARTICIPATION';
 
 export type OperationDescriptor = {
   // A single permission, or any-of for the few operations whose actors legitimately hold one of several RBAC grants.
@@ -65,6 +73,62 @@ const registry: Readonly<Record<AuthorizationOperation, OperationDescriptor>> = 
     companyTypes: Object.freeze(['PARTNER']),
     partnerClassD: false,
     resource: Object.freeze({ kind: 'COMPANY', routeParam: null }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_LIST]: Object.freeze({
+    permission: 'partner.collaboration.read',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'COMPANY', routeParam: null }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_CREATE]: Object.freeze({
+    permission: 'partner.collaboration.create',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'COMPANY', routeParam: null }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_READ]: Object.freeze({
+    permission: 'partner.collaboration.read',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'COLLABORATION', routeParam: 'collaborationId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_ARCHIVE]: Object.freeze({
+    permission: 'partner.collaboration.manage',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'COLLABORATION', routeParam: 'collaborationId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_PARTICIPATION_GRANT]: Object.freeze({
+    permission: 'partner.collaboration.participation.manage',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'COLLABORATION', routeParam: 'collaborationId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_PARTICIPATION_REVOKE]: Object.freeze({
+    permission: 'partner.collaboration.participation.manage',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'PARTICIPATION', routeParam: 'participationId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_PARTICIPATION_JOIN]: Object.freeze({
+    permission: 'partner.collaboration.participate',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'PARTICIPATION', routeParam: 'participationId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_COLLABORATION_PARTICIPATION_LEAVE]: Object.freeze({
+    permission: 'partner.collaboration.participate',
+    purpose: PURPOSE_REQUIREMENT.COLLABORATION,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'PARTICIPATION', routeParam: 'participationId' }),
   }),
 });
 

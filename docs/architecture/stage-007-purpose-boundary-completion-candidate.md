@@ -93,7 +93,7 @@ Verify retains backend/transaction binding, actor and company binding, expiratio
 
 | Check | Result |
 | --- | --- |
-| Purpose authorization, planning, and Stage-006-B registry unit tests | Passed: 9 tests. The correspondence test parses every authoritative row, requires 18 unique purpose IDs and 41 unique CPF IDs, rejects malformed/unknown IDs, endpoints, statuses, duplicates, and unexpected rows, and verifies bidirectional exact registry correspondence. |
+| Purpose authorization, planning, and Stage-006-B registry unit tests | Passed: 9 tests. The Stage 006/007 baseline correspondence test parses every authoritative row, requires 18 unique purpose IDs and 41 unique CPF IDs, rejects malformed/unknown IDs, endpoints, statuses, duplicates, and unexpected rows, and verifies bidirectional exact registry correspondence. Stage 013 subsequently added PUR-19 = COLLABORATION; the current contract test asserts the resulting 19-purpose registry. |
 | CPF_03 isolated database integration | Passed: 6 tests after disposable `sco_test` setup at `127.0.0.1:55432` with `SCO_TEST_DATABASE=1`. |
 | Full API database regression | Passed: 54 files / 461 tests (18 + 431 + 12 test groups), through the disposable test harness. |
 | Full API integration regression | Passed: 6 files / 45 tests, through the disposable test harness. |

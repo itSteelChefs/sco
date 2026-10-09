@@ -61,7 +61,7 @@ The three P2 findings concerned accuracy of enforcement claims *within* 006-D �
 | Contract | Core axis | Principal artefacts |
 | --- | --- | --- |
 | **006-A** | Ownership — *who owns it* | 72 domain/asset entries; ownership classification labels |
-| **006-B** | Purpose — *for what may it be used* | 18 purposes; 41 cross-purpose flows; 4 gaps; 8 Stage 007 requirements |
+| **006-B** | Purpose — *for what may it be used* | Stage 006 baseline: 18 purposes; 41 cross-purpose flows; 4 gaps; 8 Stage 007 requirements. The current authoritative registry was subsequently extended in Stage 013 with PUR-19 = COLLABORATION, for 19 purposes. |
 | **006-C** | Disclosure — *at what identity level may it be disclosed* | 26 disclosure rows; 6 reveal categories; 9 identity classes; 8 gaps; 10 Stage 008 requirements |
 | **006-D** | Content — *how is sensitive content governed across its life* | 13 content classes (plus SCC-08-REF); 32 enforcement rows; 13 gaps; 15 Stage 009 requirements |
 | **006-E** | Principal / Entitlement / Service Access — *who may act, under what availability, in whose context* | 4 principal classes; 8 entitlement rules; 14 Service Access requirements; 8 Workspace constraints; 30 enforcement rows; 9 gaps; 14 Stage 011 requirements |

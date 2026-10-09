@@ -45,6 +45,8 @@ jobs:
         run: pnpm --filter @sco/api exec vitest run test/integration/rate-limit.integration.test.ts --no-file-parallelism
       - name: Test PostgreSQL pool limits without database fixtures
         run: pnpm --filter @sco/api exec vitest run test/integration/database-pool.integration.test.ts --no-file-parallelism
+      - name: Stage013 non-DB contract gates
+        run: pnpm --filter @sco/api exec vitest run test/stage013-batch1-contract.test.ts test/unit/purpose-registry-contract.test.ts test/modules/stage013-fake-adapter.test.ts --no-file-parallelism
       - name: Test performance dataset safety boundaries
         run: node --test apps/api/test/performance/*.test.mjs
       - name: Validate isolated performance harness

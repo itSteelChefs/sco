@@ -117,7 +117,7 @@ The discovery list in the authorization is explicitly not the required final tax
 
 ## E. Purpose Taxonomy
 
-Eighteen purposes. Status column uses the labels from section D.
+Eighteen purposes at Stage 006 closure. Status column uses the labels from section D. The table below is the Stage 006 baseline taxonomy through PUR-18. The current authoritative application registry was subsequently extended in Stage 013 with **PUR-19 = COLLABORATION**, for nineteen purposes total; see `apps/api/src/modules/rbac/purpose-registry.ts` and the Stage 006 cross-contract review current-state note.
 
 | ID | Purpose | Status | Primary context |
 | --- | --- | --- | --- |

@@ -14,6 +14,27 @@ const statusByContractText: Record<string, PurposeFlowStatus> = {
   'NOT IMPLEMENTED': 'NOT_IMPLEMENTED',
 };
 const purposeCodes = new Set<string>(Object.values(PURPOSE));
+const AUTHORITATIVE_PURPOSE_REGISTRY = [
+  ['IDENTITY', 'PUR-01'],
+  ['AUTHORIZATION', 'PUR-02'],
+  ['PARTNER_RELATIONSHIP', 'PUR-03'],
+  ['PROJECT_CONTEXT', 'PUR-04'],
+  ['PROCUREMENT_NEED_INTAKE', 'PUR-05'],
+  ['PROCUREMENT_OPERATIONS', 'PUR-06'],
+  ['BUY_SIDE_SOURCING', 'PUR-07'],
+  ['SUPPLY_NETWORK', 'PUR-08'],
+  ['CATALOG', 'PUR-09'],
+  ['COMMERCIAL_PRICING', 'PUR-10'],
+  ['COMMERCIAL_OFFER', 'PUR-11'],
+  ['COMMERCIAL_COMMITMENT', 'PUR-12'],
+  ['DELIVERY', 'PUR-13'],
+  ['VERIFY', 'PUR-14'],
+  ['DOCUMENT_CUSTODY', 'PUR-15'],
+  ['AUDIT', 'PUR-16'],
+  ['PROCUREMENT_INTELLIGENCE', 'PUR-17'],
+  ['STUDIES', 'PUR-18'],
+  ['COLLABORATION', 'PUR-19'],
+] as const;
 const semanticEndpointPurpose: Record<string, PurposeCode> = {
   'all purposes (minimum actor attribution only)': PURPOSE.IDENTITY,
   'all purposes (decision/context metadata only)': PURPOSE.AUTHORIZATION,
@@ -96,10 +117,16 @@ async function contractFlows(): Promise<ContractFlow[]> {
 }
 
 describe('Stage-006-B purpose and CPF registry correspondence', () => {
-  it('contains exactly the 18 authorized purpose IDs', () => {
-    expect(Object.values(PURPOSE)).toHaveLength(18);
-    expect(new Set(Object.values(PURPOSE)).size).toBe(18);
-    expect(Object.values(PURPOSE)).toEqual(Array.from({ length: 18 }, (_, index) => `PUR-${String(index + 1).padStart(2, '0')}`));
+  it('contains exactly the 19 authoritative purposes in append-only order', () => {
+    expect(Object.entries(PURPOSE)).toEqual(AUTHORITATIVE_PURPOSE_REGISTRY);
+    expect(Object.values(PURPOSE)).toHaveLength(19);
+    expect(new Set(Object.keys(PURPOSE)).size).toBe(19);
+    expect(new Set(Object.values(PURPOSE)).size).toBe(19);
+    expect(PURPOSE.COLLABORATION).toBe('PUR-19');
+    expect(PURPOSE).not.toHaveProperty('COLLABORATION_REALTIME');
+    expect(PURPOSE).not.toHaveProperty('REALTIME');
+    expect(PURPOSE).not.toHaveProperty('EXECUTION');
+    expect(PURPOSE).not.toHaveProperty('PROVIDER');
   });
 
   it('fails closed unless every authoritative CPF row exactly corresponds to the registry', async () => {

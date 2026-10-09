@@ -130,11 +130,16 @@ describe('SR-01/SR-02 internal gateway security remediation', () => {
       await owner.query("INSERT INTO \"Company\"(id,name,type) VALUES ($1,'A','PARTNER'),($2,'B','PARTNER')", [companyA, companyB]);
       const partnershipB = id();
       await owner.query('INSERT INTO company_partnerships(id,company_id,type) VALUES ($1,$2,$3)', [partnershipB, companyB, 'BUYER_PARTNERSHIP']);
-      const result = await withRuntimeTransaction(async (client) => {
-        await client.query("SELECT set_config('app.tenant_id', $1, true)", [companyA]);
-        return client.query('SELECT 1 FROM company_partnerships WHERE id=$1', [partnershipB]);
-      });
-      expect(result.rows).toEqual([]);
+      try {
+        const result = await withRuntimeTransaction(async (client) => {
+          await client.query("SELECT set_config('app.tenant_id', $1, true)", [companyA]);
+          return client.query('SELECT 1 FROM company_partnerships WHERE id=$1', [partnershipB]);
+        });
+        expect(result.rows).toEqual([]);
+      } finally {
+        await owner.query('DELETE FROM company_partnerships WHERE id=$1', [partnershipB]);
+        await owner.query('DELETE FROM "Company" WHERE id = ANY($1::uuid[])', [[companyA, companyB]]);
+      }
     });
 
     it('7: sco_runtime cannot invoke a protected internal gateway directly (no EXECUTE grant)', async () => {

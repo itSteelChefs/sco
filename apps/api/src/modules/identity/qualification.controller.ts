@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, type RequestWithAuth } from '../auth/guards/auth.guard.js';
+import { notFound } from '../../common/http/api-error.js';
 import { ScoInternalGuard } from './sco-internal.guard.js';
 import { QualificationService } from './qualification.service.js';
 import { PartnershipsService } from './partnerships.service.js';
@@ -32,6 +33,16 @@ export class QualificationController {
   @Post('companies/:companyId/partnerships')
   createPartnership(@Req() req: RequestWithAuth, @Param('companyId', ParseUUIDPipe) companyId: string, @Body() body: PartnershipTypeDto) {
     return this.partnerships.create(req.scoUser!.id, companyId, body.type);
+  }
+
+  @Get('partnerships')
+  actionQueue(@Req() req: RequestWithAuth) { return this.partnerships.actionQueue(req.scoUser!.id); }
+
+  @Get('partnerships/:id/readiness')
+  async readiness(@Req() req: RequestWithAuth, @Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.partnerships.readiness(req.scoUser!.id, id);
+    if (!result) throw notFound();
+    return result;
   }
 
   @Post('partnerships/:id/activate')

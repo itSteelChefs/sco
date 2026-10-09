@@ -35,6 +35,66 @@ export type ServiceAccessWorkspaceSummary = {
   state: string;
   version: number;
 };
+export type InternalPartnershipReadiness = {
+  partnershipId: string;
+  companyId: string;
+  companyDisplayName: string;
+  partnershipType: string;
+  partnershipStatus: string;
+  qualificationStatus: string | null;
+  qualificationReady: boolean;
+  requiredAgreementsSatisfied: boolean;
+  companyStatus: string;
+  companyActive: boolean;
+  activePortalMembershipReady: boolean;
+  partnerPortalReadReady: boolean;
+  nextInternalAction: 'APPROVE' | 'ACTIVATE' | 'NONE';
+  actionReady: boolean;
+  blockers: string[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+type InternalPartnershipReadinessRow = {
+  partnership_id: string;
+  company_id: string;
+  company_display_name: string;
+  partnership_type: string;
+  partnership_status: string;
+  qualification_status: string | null;
+  qualification_ready: boolean;
+  required_agreements_satisfied: boolean;
+  company_status: string;
+  company_active: boolean;
+  active_portal_membership_ready: boolean;
+  partner_portal_read_ready: boolean;
+  next_internal_action: 'APPROVE' | 'ACTIVATE' | 'NONE';
+  action_ready: boolean;
+  blockers: string[];
+  created_at: Date;
+  updated_at: Date;
+};
+
+function mapInternalPartnershipReadiness(row: InternalPartnershipReadinessRow): InternalPartnershipReadiness {
+  return {
+    partnershipId: row.partnership_id,
+    companyId: row.company_id,
+    companyDisplayName: row.company_display_name,
+    partnershipType: row.partnership_type,
+    partnershipStatus: row.partnership_status,
+    qualificationStatus: row.qualification_status,
+    qualificationReady: row.qualification_ready,
+    requiredAgreementsSatisfied: row.required_agreements_satisfied,
+    companyStatus: row.company_status,
+    companyActive: row.company_active,
+    activePortalMembershipReady: row.active_portal_membership_ready,
+    partnerPortalReadReady: row.partner_portal_read_ready,
+    nextInternalAction: row.next_internal_action,
+    actionReady: row.action_ready,
+    blockers: row.blockers,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 @Injectable()
 export class InternalDatabaseService implements OnModuleDestroy {
   private readonly pool: Pool;
@@ -527,6 +587,20 @@ export class InternalDatabaseService implements OnModuleDestroy {
   }
   async partnershipCreate(actor: string, companyId: string, type: 'BUYER_PARTNERSHIP' | 'SUPPLIER_PARTNERSHIP') {
     return (await this.pool.query('SELECT * FROM public.internal_partnership_create($1,$2,$3)', [actor, companyId, type])).rows[0] ?? null;
+  }
+  async partnershipActionQueue(actor: string): Promise<InternalPartnershipReadiness[]> {
+    const result = await this.pool.query<InternalPartnershipReadinessRow>(
+      'SELECT * FROM public.internal_partnership_action_queue($1)',
+      [actor],
+    );
+    return result.rows.map(mapInternalPartnershipReadiness);
+  }
+  async partnershipReadinessGet(actor: string, partnershipId: string): Promise<InternalPartnershipReadiness | null> {
+    const result = await this.pool.query<InternalPartnershipReadinessRow>(
+      'SELECT * FROM public.internal_partnership_readiness_get($1,$2)',
+      [actor, partnershipId],
+    );
+    return result.rows[0] ? mapInternalPartnershipReadiness(result.rows[0]) : null;
   }
   async partnershipActivate(actor: string, id: string) {
     return (await this.pool.query('SELECT * FROM public.internal_partnership_activate($1,$2)', [actor, id])).rows[0] ?? null;

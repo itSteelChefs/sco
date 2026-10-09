@@ -11,6 +11,14 @@ export class PartnershipsService {
     return withAdmissionErrors(() => this.internal.partnershipCreate(actorUserId, companyId, type));
   }
 
+  actionQueue(actorUserId: string) {
+    return withAdmissionErrors(() => this.internal.partnershipActionQueue(actorUserId));
+  }
+
+  readiness(actorUserId: string, partnershipId: string) {
+    return withAdmissionErrors(() => this.internal.partnershipReadinessGet(actorUserId, partnershipId));
+  }
+
   activate(actorUserId: string, id: string) {
     return withAdmissionErrors(() => this.internal.partnershipActivate(actorUserId, id));
   }

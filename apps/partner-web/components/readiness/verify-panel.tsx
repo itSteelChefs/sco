@@ -1,8 +1,13 @@
 'use client';
 
-import { ApiClientError, type PartnerDocumentUploadResult } from '@sco/contracts';
+import { ApiClientError, type PartnerDocumentUploadResult, type PartnerVerifyResult } from '@sco/contracts';
 import { useMemo, useState } from 'react';
 import { readinessApi } from '../../lib/readiness-api';
+import {
+  coverageQualityLabelAr,
+  verifyClassificationLabelAr,
+  verifyRequestStatusLabelAr,
+} from './readiness-labels';
 import styles from './readiness.module.css';
 
 type Props = {
@@ -11,9 +16,9 @@ type Props = {
 };
 
 /**
- * Partner Verify intake — Quote Check only.
- * Quote lines require unitId; Partner unit-list HTTP is absent → use optional
- * NEXT_PUBLIC_SCO_DEFAULT_UNIT_ID until Cursor3/Cursor4 provide a catalog.
+ * Partner Verify intake + result — Quote Check only.
+ * Quote lines require unitId; Partner unit-list HTTP is absent → optional
+ * NEXT_PUBLIC_SCO_DEFAULT_UNIT_ID until a partner unit catalog exists.
  */
 export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
   const quoteDocs = useMemo(
@@ -25,6 +30,7 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
   const [requestId, setRequestId] = useState('');
   const [revisionId, setRevisionId] = useState('');
   const [status, setStatus] = useState('');
+  const [result, setResult] = useState<PartnerVerifyResult | null>(null);
   const [selectedDoc, setSelectedDoc] = useState('');
   const [description, setDescription] = useState('عرض سعر');
   const [quantity, setQuantity] = useState('1');
@@ -39,6 +45,7 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
     if (!(failure instanceof ApiClientError)) return 'تعذر إكمال طلب التوثيق.';
     if (failure.status === 401) return 'انتهت الجلسة.';
     if (failure.status === 403) return 'غير مصرح بهذا الإجراء.';
+    if (failure.status === 404) return 'لا نتيجة متاحة لهذا الطلب بعد.';
     if (failure.code === 'DOCUMENT_LINK_INVALID') return 'المستند غير صالح أو لا يخص شركتك.';
     if (failure.code === 'VERIFY_QUOTE_REQUIRED') return 'يلزم إرفاق عرض السعر قبل الإرسال.';
     if (failure.code === 'VALIDATION_FAILED') return 'بيانات غير صالحة.';
@@ -48,13 +55,14 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
   async function createDraft() {
     setBusy(true);
     setError('');
-    setMessage('جارٍ إنشاء مسودة Quote Check...');
+    setResult(null);
+    setMessage('جارٍ إنشاء مسودة توثيق عرض السعر...');
     try {
       const draft = await readinessApi.verifyCreate(companyId);
       setRequestId(draft.requestId);
       setStatus(draft.status);
       setRevisionId('');
-      setMessage(`مسودة جاهزة · ${draft.productMode} · ${draft.requestId.slice(0, 8)}…`);
+      setMessage(`مسودة جاهزة · توثيق عرض سعر · ${draft.requestId.slice(0, 8)}…`);
     } catch (failure) {
       setMessage('');
       setError(mapError(failure));
@@ -71,11 +79,11 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
     }
     const doc = quoteDocs.find((item) => item.documentId === selectedDoc);
     if (!doc) {
-      setError('اختر مستند عرض سعر مرفوعًا (فئة VERIFY_QUOTE).');
+      setError('اختر مستند عرض سعر مرفوعًا (فئة عرض السعر للتوثيق).');
       return;
     }
     if (!/^[0-9a-f-]{36}$/i.test(unitId.trim())) {
-      setError('معرّف الوحدة غير متوفر. يلزم كتالوج وحدات للشريك أو ضبط NEXT_PUBLIC_SCO_DEFAULT_UNIT_ID.');
+      setError('معرّف الوحدة غير متوفر حاليًا. أكمل الإعداد مع فريق سكو أو ارفع العرض بعد توفر كتالوج الوحدات.');
       return;
     }
     setBusy(true);
@@ -92,7 +100,7 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
         lines: [
           {
             lineNumber: 1,
-            itemDescription: description.trim() || 'Quote line',
+            itemDescription: description.trim() || 'بند عرض سعر',
             unitId: unitId.trim(),
             quantity: Number(quantity) || 1,
             currencyCode: currency,
@@ -105,8 +113,30 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
       setMessage('تم الإرفاق · جارٍ الإرسال...');
       const submitted = await readinessApi.verifySubmit(companyId, requestId, attached.revisionId);
       setStatus(submitted.status);
-      setMessage(`تم إرسال طلب التوثيق · الحالة ${submitted.status}`);
+      setMessage(`تم إرسال طلب التوثيق · الحالة ${verifyRequestStatusLabelAr(submitted.status)}`);
     } catch (failure) {
+      setMessage('');
+      setError(mapError(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadResult() {
+    if (!requestId) {
+      setError('أنشئ أو اختر طلبًا أولًا.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setMessage('جارٍ جلب النتيجة من الخادم...');
+    try {
+      const current = await readinessApi.verifyGetResult(companyId, requestId);
+      setResult(current);
+      setStatus(current.status);
+      setMessage(`نتيجة متاحة · ${verifyClassificationLabelAr(current.classification)}`);
+    } catch (failure) {
+      setResult(null);
       setMessage('');
       setError(mapError(failure));
     } finally {
@@ -117,23 +147,26 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
   return (
     <section className={styles.panel} aria-labelledby="verify-title" data-testid="verify-panel">
       <div className={styles.statusRow}>
-        <h2 id="verify-title">تأكّد / Verify — Quote Check</h2>
-        <span className={styles.truth}>LIVE · Quote Check only</span>
+        <h2 id="verify-title">تأكّد — توثيق عرض السعر</h2>
+        <span className={styles.truth}>مسار فعّال · عرض سعر فقط</span>
       </div>
       <p className={styles.panelLead}>
-        إدخال طلب توثيق عرض سعر فقط. لا يوجد فحص سعر عام، ولا RFQ، ولا أمر شراء، ولا تفاوض.
+        إدخال طلب توثيق عرض سعر فقط. لا يشمل فحص سعر عامًا، ولا RFQ، ولا أمر شراء، ولا تفاوضًا.
       </p>
 
       <div className={styles.actions}>
         <button type="button" className={styles.button} disabled={busy} onClick={() => void createDraft()}>
-          بدء مسودة Quote Check
+          بدء مسودة التوثيق
+        </button>
+        <button type="button" className={styles.buttonGhost} disabled={busy || !requestId} onClick={() => void loadResult()}>
+          جلب النتيجة
         </button>
       </div>
 
       {requestId ? (
-        <p className={styles.hint} role="status">
-          الطلب: {requestId} · الحالة: {status || '—'}
-          {revisionId ? ` · المراجعة: ${revisionId.slice(0, 8)}…` : ''}
+        <p className={styles.hint} role="status" data-testid="verify-status">
+          رقم الطلب: {requestId.slice(0, 8)}… · الحالة: {verifyRequestStatusLabelAr(status)}
+          {revisionId ? ` · مراجعة: ${revisionId.slice(0, 8)}…` : ''}
         </p>
       ) : null}
 
@@ -146,7 +179,7 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
             onChange={(e) => setSelectedDoc(e.target.value)}
             disabled={busy || !quoteDocs.length}
           >
-            <option value="">{quoteDocs.length ? 'اختر مستند VERIFY_QUOTE' : 'ارفع مستند VERIFY_QUOTE أولًا'}</option>
+            <option value="">{quoteDocs.length ? 'اختر مستند عرض السعر' : 'ارفع مستند عرض السعر أولًا'}</option>
             {quoteDocs.map((doc) => (
               <option key={doc.documentId} value={doc.documentId}>
                 {doc.filename}
@@ -168,22 +201,31 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
         </div>
         <div className={styles.field}>
           <label htmlFor="verify-currency">العملة</label>
-          <input id="verify-currency" value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} disabled={busy} maxLength={3} />
-        </div>
-        <div className={styles.field}>
-          <label htmlFor="verify-unit">معرّف الوحدة (unitId)</label>
           <input
-            id="verify-unit"
-            value={unitId}
-            onChange={(e) => setUnitId(e.target.value)}
+            id="verify-currency"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value.toUpperCase())}
             disabled={busy}
-            placeholder="يلزم كتالوج وحدات للشريك"
-            aria-describedby="verify-unit-hint"
+            maxLength={3}
           />
-          <p id="verify-unit-hint" className={styles.hint}>
-            لا توجد واجهة شريك لسرد الوحدات بعد. يمكن ضبط NEXT_PUBLIC_SCO_DEFAULT_UNIT_ID مؤقتًا للبيئات التي تملك وحدة معروفة.
-          </p>
         </div>
+        {defaultUnitId ? (
+          <p className={styles.hint}>وحدة القياس مُعدّة لهذا المسار تلقائيًا.</p>
+        ) : (
+          <div className={styles.field}>
+            <label htmlFor="verify-unit">معرّف الوحدة</label>
+            <input
+              id="verify-unit"
+              value={unitId}
+              onChange={(e) => setUnitId(e.target.value)}
+              disabled={busy}
+              aria-describedby="verify-unit-hint"
+            />
+            <p id="verify-unit-hint" className={styles.hint}>
+              لا توجد واجهة شريك لسرد الوحدات بعد.
+            </p>
+          </div>
+        )}
         <div className={styles.actions}>
           <button type="button" className={styles.button} disabled={busy || !requestId} onClick={() => void attachAndSubmit()}>
             إرفاق العرض وإرسال التوثيق
@@ -191,9 +233,51 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
         </div>
       </div>
 
+      {result ? (
+        <section aria-labelledby="verify-result-title" data-testid="verify-result">
+          <h3 id="verify-result-title">نتيجة التوثيق</h3>
+          <dl className={styles.summaryGrid}>
+            <dt>الحالة</dt>
+            <dd>{verifyRequestStatusLabelAr(result.status)}</dd>
+            <dt>التصنيف</dt>
+            <dd>{verifyClassificationLabelAr(result.classification)}</dd>
+            <dt>تاريخ الإقفال</dt>
+            <dd>{result.finalizedAt ? new Date(result.finalizedAt).toLocaleString('ar') : '—'}</dd>
+          </dl>
+          <h4>نطاق التغطية</h4>
+          {result.coverage.length === 0 ? (
+            <p className={styles.hint}>لا بيانات تغطية في النتيجة.</p>
+          ) : (
+            <ul className={styles.agreementList}>
+              {result.coverage.map((entry) => (
+                <li key={`${entry.currency}-${entry.totalLineCount}`}>
+                  <strong>{entry.currency}</strong>
+                  <span className={styles.badge}>{coverageQualityLabelAr(entry)}</span>
+                  <span className={styles.hint}>
+                    بنود محققة {entry.verifiedLineCount}/{entry.totalLineCount} · مستبعدة {entry.excludedLineCount} ·
+                    غير كافية {entry.insufficientLineCount}
+                  </span>
+                  <span className={styles.hint}>
+                    تغطية البنود {entry.lineCoveragePercent}% · تغطية القيمة {entry.valueCoveragePercent}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className={styles.hint}>
+            قيمة العرض والنطاق المرجعي والفجوة ودرجة الثقة والإجراء المقترح تُعرض فقط عند توفرها في عقد النتيجة
+            المعتمد — لا تُختَرع هنا.
+          </p>
+        </section>
+      ) : null}
+
       <div className={styles.liveRegion} aria-live="polite">
         {message}
-        {error ? <p className={styles.fieldError} role="alert">{error}</p> : null}
+        {error ? (
+          <p className={styles.fieldError} role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
     </section>
   );

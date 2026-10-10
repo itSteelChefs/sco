@@ -1,7 +1,7 @@
 'use client';
 
 import { ApiClientError, type PartnerAgreement } from '@sco/contracts';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { readinessApi } from '../../lib/readiness-api';
 import {
   LAUNCH_AGREEMENT_FOCUS,
@@ -17,17 +17,22 @@ type Props = {
 };
 
 export function AgreementsPanel({ companyId, agreements, onAccepted }: Props) {
+  const dialogId = useId();
   const [busyType, setBusyType] = useState<string>();
+  const [pending, setPending] = useState<PartnerAgreement | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const list = agreements ?? [];
   const focused = list.filter((item) => LAUNCH_AGREEMENT_FOCUS.has(item.agreementType));
   const extras = list.filter((item) => !LAUNCH_AGREEMENT_FOCUS.has(item.agreementType) && item.required);
-  const visible = [...focused, ...extras];
+  // Launch package only in primary list; do not promote non-launch types as first-class.
+  const visible = focused.length ? focused : [];
+  const ignoredExtras = extras.length;
 
-  async function accept(agreement: PartnerAgreement) {
-    if (!agreement.actionable || busyType) return;
+  async function confirmAccept() {
+    if (!pending || busyType) return;
+    const agreement = pending;
     setBusyType(agreement.agreementType);
     setError('');
     setMessage('جارٍ تسجيل القبول...');
@@ -41,6 +46,7 @@ export function AgreementsPanel({ companyId, agreements, onAccepted }: Props) {
             : `${agreement.agreementType}-${agreement.version}-${Date.now()}`,
       });
       setMessage(`تم تسجيل القبول: ${agreementTypeLabelAr(result.agreementType)} (${result.version}).`);
+      setPending(null);
       onAccepted();
     } catch (failure) {
       if (failure instanceof ApiClientError && failure.status === 401) {
@@ -59,50 +65,74 @@ export function AgreementsPanel({ companyId, agreements, onAccepted }: Props) {
   }
 
   return (
-    <section className={styles.panel} aria-labelledby="agree-title">
+    <section className={styles.panel} aria-labelledby="agree-title" data-testid="agreements-panel">
       <div className={styles.statusRow}>
         <h2 id="agree-title">الاتفاقيات</h2>
-        <span className={styles.truth}>LIVE</span>
+        <span className={styles.truth}>LIVE · حزمة الإطلاق</span>
       </div>
       <p className={styles.panelLead}>
-        حزمة الإطلاق: السرية الملزمة وشروط الشراكة عند نشرها. لا يُختَرع نص قانوني هنا — يُعرض ما
-        تنشره سكو عبر الواجهة فقط.
+        حزمة الإطلاق فقط: السرية الملزمة وشروط الشراكة. لا يُختَرع نص قانوني هنا — يُعرض ما تنشره سكو عبر
+        الواجهة فقط.
       </p>
 
       {!agreements ? <p role="status">جارٍ تحميل الاتفاقيات...</p> : null}
 
       {agreements && visible.length === 0 ? (
         <p className={styles.note} role="status">
-          لا توجد اتفاقيات مطلوبة معروضة حاليًا لهذه الشركة.
+          لا توجد اتفاقيات إطلاق مطلوبة معروضة حاليًا لهذه الشركة.
         </p>
+      ) : null}
+
+      {ignoredExtras > 0 ? (
+        <p className={styles.hint}>يُعرض مسار الإطلاق فقط؛ أنواع أخرى مطلوبة خارج هذا المسار غير مُروَّجة هنا.</p>
       ) : null}
 
       {visible.length > 0 ? (
         <ul className={styles.agreementList}>
-          {visible.map((agreement) => (
-            <li key={`${agreement.agreementType}:${agreement.version}`}>
-              <div className={styles.statusRow}>
-                <strong>{agreementTypeLabelAr(agreement.agreementType)}</strong>
-                <span className={styles.badge}>{agreementStatusLabelAr(agreement.acceptanceStatus)}</span>
-                <span className={styles.hint}>إصدار {agreement.version}</span>
-              </div>
-              {agreement.content ? (
-                <p className={styles.panelLead}>{agreement.content.slice(0, 280)}{agreement.content.length > 280 ? '…' : ''}</p>
-              ) : (
-                <p className={styles.hint}>لا يُعرض نص الاتفاقية في هذه الخلاصة — الحالة فقط.</p>
-              )}
-              {agreement.actionable ? (
-                <button
-                  type="button"
-                  className={styles.button}
-                  disabled={Boolean(busyType)}
-                  onClick={() => void accept(agreement)}
-                >
-                  {busyType === agreement.agreementType ? 'جارٍ القبول...' : 'أوافق على هذه الاتفاقية'}
-                </button>
-              ) : null}
-            </li>
-          ))}
+          {visible.map((agreement) => {
+            const reaccept = agreement.acceptanceStatus === 'REACCEPTANCE_REQUIRED';
+            return (
+              <li key={`${agreement.agreementType}:${agreement.version}`}>
+                <div className={styles.statusRow}>
+                  <strong>{agreementTypeLabelAr(agreement.agreementType)}</strong>
+                  <span className={styles.badge}>{agreementStatusLabelAr(agreement.acceptanceStatus)}</span>
+                  <span className={styles.hint}>الإصدار الحالي {agreement.version}</span>
+                </div>
+                {agreement.acceptedVersion ? (
+                  <p className={styles.hint}>
+                    آخر قبول مسجّل: إصدار {agreement.acceptedVersion}
+                    {reaccept ? ' — يلزم قبول الإصدار الجديد دون محو القبول السابق.' : ''}
+                  </p>
+                ) : null}
+                {agreement.effectiveAt ? (
+                  <p className={styles.hint}>
+                    ساري من {new Date(agreement.effectiveAt).toLocaleString('ar')}
+                  </p>
+                ) : null}
+                {agreement.content ? (
+                  <p className={styles.panelLead}>
+                    {agreement.content.slice(0, 480)}
+                    {agreement.content.length > 480 ? '…' : ''}
+                  </p>
+                ) : (
+                  <p className={styles.hint}>لا يُعرض نص الاتفاقية هنا — الحالة والإصدار فقط من الخادم.</p>
+                )}
+                {agreement.actionable ? (
+                  <button
+                    type="button"
+                    className={styles.button}
+                    disabled={Boolean(busyType)}
+                    onClick={() => {
+                      setError('');
+                      setPending(agreement);
+                    }}
+                  >
+                    {busyType === agreement.agreementType ? 'جارٍ القبول...' : 'أوافق على هذا الإصدار'}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 
@@ -118,6 +148,35 @@ export function AgreementsPanel({ companyId, agreements, onAccepted }: Props) {
           </p>
         ) : null}
       </div>
+
+      {pending ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={dialogId}
+          className={styles.panel}
+          data-testid="agreement-confirm-dialog"
+        >
+          <h3 id={dialogId}>تأكيد القبول</h3>
+          <p>
+            هل تؤكد قبول {agreementTypeLabelAr(pending.agreementType)} — الإصدار {pending.version}؟
+          </p>
+          <p className={styles.hint}>يُسجَّل القبول لدى سكو عبر واجهة القبول الرسمية فقط.</p>
+          <div className={styles.actions}>
+            <button type="button" className={styles.button} disabled={Boolean(busyType)} onClick={() => void confirmAccept()}>
+              تأكيد القبول
+            </button>
+            <button
+              type="button"
+              className={styles.buttonGhost}
+              disabled={Boolean(busyType)}
+              onClick={() => setPending(null)}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

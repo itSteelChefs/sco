@@ -10,7 +10,7 @@ export type PartnerJourney = {
 	operational: { procurementAccess: 'AVAILABLE' | 'RESTRICTED'; reason?: PartnerJourneyReason };
 	relationship: {
 		stage: 'REGISTRATION' | 'QUALIFICATION' | 'AGREEMENT' | 'APPROVAL' | 'ONBOARDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
-		qualification: 'NONE' | 'APPLICATION' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+		qualification: 'NONE' | 'DRAFT' | 'APPLICATION' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
 		partnership: 'NONE' | 'UNDER_REVIEW' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
 		agreementsSatisfied: boolean;
 		pendingAgreements: Array<{ agreementType: string; version: string; status: string; actionable: boolean }>;
@@ -34,6 +34,83 @@ export type PartnerWorkspaceCapabilityState = { capability: string; available: b
 // capabilityStates is advisory display state only; it is never an authorization decision.
 export type PartnerWorkspace = { id: string; displayName: string; state: string; version: number; capabilities: string[]; capabilityStates?: PartnerWorkspaceCapabilityState[] };
 export type ApiErrorCode = 'UNAUTHENTICATED' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'VALIDATION_FAILED' | 'INTERNAL_ERROR' | string;
+
+export type PartnerQualificationDraft = {
+	companyName: string;
+	commercialIdentifier?: string;
+	responsiblePerson: string;
+	contact: string;
+	city: string;
+	sector: 'HVAC_REFRIGERATION' | 'ELECTRICAL' | 'PLUMBING' | 'MULTI';
+	needType: 'VERIFY_QUOTE_CHECK' | 'PROCUREMENT_SUPPORT' | 'BOTH';
+	procurementSize: 'SMALL' | 'MEDIUM' | 'LARGE' | 'PROJECT_BASED';
+	procurementFrequency: 'OCCASIONAL' | 'MONTHLY' | 'WEEKLY' | 'PROJECT_BASED';
+};
+
+export type PartnerQualification = {
+	id: string;
+	status: string;
+	companyName: string;
+	commercialIdentifier: string | null;
+	responsiblePerson: string | null;
+	contact: string;
+	city: string | null;
+	sector: string | null;
+	needType: string | null;
+	procurementSize: string | null;
+	procurementFrequency: string | null;
+	submittedAt: string | null;
+	updatedAt: string;
+};
+
+export type PartnerDocumentCategory = 'QUALIFICATION_SUPPORT' | 'AGREEMENT_ARTIFACT' | 'VERIFY_QUOTE' | 'GENERAL';
+
+export type PartnerDocumentUploadInput = {
+	category: PartnerDocumentCategory;
+	filename: string;
+	contentType: string;
+	contentBase64: string;
+	linkedEntityType?: 'QUALIFICATION_APPLICATION' | 'VERIFY_REQUEST' | 'AGREEMENT_POLICY_VERSION';
+	linkedEntityId?: string;
+};
+
+export type PartnerDocumentUploadResult = {
+	documentId: string;
+	versionId: string;
+	filename: string;
+	contentType: string;
+	byteSize: number;
+	category: string;
+	retentionClass: string;
+	linkedEntityType: string | null;
+	linkedEntityId: string | null;
+	createdAt: string;
+};
+
+export type PartnerVerifyDraft = { requestId: string; status: 'DRAFT'; productMode: 'QUOTE_CHECK' };
+export type PartnerVerifyQuoteLine = {
+	lineNumber: number;
+	lineReference?: string;
+	itemDescription?: string;
+	productIdentityId?: string;
+	unitId: string;
+	quantity: number;
+	currencyCode: string;
+	unitPrice: number;
+	isPriceBearing?: boolean;
+	isInformational?: boolean;
+	isRealZeroValue?: boolean;
+};
+export type PartnerVerifyAttachQuoteInput = {
+	documentId: string;
+	documentVersionId: string;
+	currencies: string[];
+	lines: PartnerVerifyQuoteLine[];
+	idempotencyKey: string;
+	expectedPredecessorRevisionId?: string;
+};
+export type PartnerVerifyAttachResult = { requestId: string; revisionId: string; status: string };
+export type PartnerVerifySubmitResult = { requestId: string; revisionId: string; status: 'SUBMITTED' };
 
 export class ApiClientError extends Error {
 	constructor(
@@ -81,6 +158,22 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 		acceptPartnerAgreement: (companyId: string, body: { agreementType: string; versionCode: string; idempotencyKey: string }, signal?: AbortSignal) => request<PartnerAgreementAcceptance>('/api/v1/partner/admission/agreements/accept', { method: 'POST', companyId, body, signal }),
 		partnerWorkspace: (companyId: string, signal?: AbortSignal) => request<PartnerWorkspace | null>('/api/v1/partner/workspace/current', { companyId, signal }),
 		createPartnerWorkspace: (companyId: string, signal?: AbortSignal) => request<PartnerWorkspace>('/api/v1/partner/workspace/current', { method: 'POST', companyId, body: {}, signal }),
+		partnerQualificationCurrent: (companyId: string, signal?: AbortSignal) =>
+			request<PartnerQualification | null>('/api/v1/partner/qualification/current', { companyId, signal }),
+		partnerQualificationSaveDraft: (companyId: string, body: PartnerQualificationDraft, signal?: AbortSignal) =>
+			request<PartnerQualification>('/api/v1/partner/qualification/draft', { method: 'PUT', companyId, body, signal }),
+		partnerQualificationCreateDraft: (companyId: string, body: PartnerQualificationDraft, signal?: AbortSignal) =>
+			request<PartnerQualification>('/api/v1/partner/qualification/draft', { method: 'POST', companyId, body, signal }),
+		partnerQualificationSubmit: (companyId: string, signal?: AbortSignal) =>
+			request<PartnerQualification>('/api/v1/partner/qualification/submit', { method: 'POST', companyId, body: {}, signal }),
+		partnerDocumentUpload: (companyId: string, body: PartnerDocumentUploadInput, signal?: AbortSignal) =>
+			request<PartnerDocumentUploadResult>('/api/v1/partner/documents/upload', { method: 'POST', companyId, body, signal }),
+		partnerVerifyCreate: (companyId: string, signal?: AbortSignal) =>
+			request<PartnerVerifyDraft>('/api/v1/partner/verify/requests', { method: 'POST', companyId, body: { productMode: 'QUOTE_CHECK' }, signal }),
+		partnerVerifyAttachQuote: (companyId: string, requestId: string, body: PartnerVerifyAttachQuoteInput, signal?: AbortSignal) =>
+			request<PartnerVerifyAttachResult>(`/api/v1/partner/verify/requests/${requestId}/quote`, { method: 'POST', companyId, body, signal }),
+		partnerVerifySubmit: (companyId: string, requestId: string, revisionId: string, signal?: AbortSignal) =>
+			request<PartnerVerifySubmitResult>(`/api/v1/partner/verify/requests/${requestId}/submit`, { method: 'POST', companyId, body: { revisionId }, signal }),
 		companies: (companyId: string, page = 1, pageSize = 25) => request<Page<{ id: string; name: string; type: string; status: string }>>(`/api/v1/internal/companies?page=${page}&pageSize=${pageSize}`, { companyId }),
 	};
 }

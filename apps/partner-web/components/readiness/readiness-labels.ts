@@ -9,16 +9,17 @@ export type PresentationReadiness =
   | 'APPROVED'
   | 'UNKNOWN';
 
-export function mapQualificationPresentation(
-  qualification: string | null | undefined,
-): PresentationReadiness {
+export function mapQualificationPresentation(qualification: string | null | undefined): PresentationReadiness {
   switch (qualification) {
     case 'NONE':
     case null:
     case undefined:
       return 'INCOMPLETE';
+    case 'DRAFT':
     case 'APPLICATION':
       return 'IN_PROGRESS';
+    case 'SUBMITTED':
+      return 'SUBMITTED';
     case 'UNDER_REVIEW':
       return 'UNDER_REVIEW';
     case 'APPROVED':
@@ -35,7 +36,7 @@ export function qualificationLabelAr(presentation: PresentationReadiness): strin
     case 'INCOMPLETE':
       return 'غير مكتمل';
     case 'IN_PROGRESS':
-      return 'قيد الإعداد';
+      return 'مسودة / قيد الإعداد';
     case 'SUBMITTED':
       return 'مُرسَل';
     case 'UNDER_REVIEW':
@@ -70,7 +71,6 @@ export function agreementStatusLabelAr(status: string): string {
   }
 }
 
-/** Launch package focus — still render other required types if API returns them. */
 export const LAUNCH_AGREEMENT_FOCUS = new Set(['BINDING_CONFIDENTIALITY', 'PARTNERSHIP_TERMS']);
 
 export const SECTOR_OPTIONS = [
@@ -87,8 +87,22 @@ export const NEED_OPTIONS = [
 ] as const;
 
 export const SIZE_OPTIONS = [
-  { value: 'OCCASIONAL', label: 'طلبات متقطعة' },
-  { value: 'MONTHLY', label: 'شهري تقريبًا' },
-  { value: 'QUARTERLY_PROJECTS', label: 'مشاريع ربع سنوية' },
-  { value: 'CONTINUOUS', label: 'مستمر / عالي التكرار' },
+  { value: 'SMALL', label: 'صغير' },
+  { value: 'MEDIUM', label: 'متوسط' },
+  { value: 'LARGE', label: 'كبير' },
+  { value: 'PROJECT_BASED', label: 'حسب المشروع' },
+] as const;
+
+export const FREQUENCY_OPTIONS = [
+  { value: 'OCCASIONAL', label: 'متقطع' },
+  { value: 'MONTHLY', label: 'شهري' },
+  { value: 'WEEKLY', label: 'أسبوعي' },
+  { value: 'PROJECT_BASED', label: 'حسب المشروع' },
+] as const;
+
+export const DOCUMENT_CATEGORY_OPTIONS = [
+  { value: 'QUALIFICATION_SUPPORT', label: 'دعم التأهيل' },
+  { value: 'AGREEMENT_ARTIFACT', label: 'مرفق اتفاقية' },
+  { value: 'VERIFY_QUOTE', label: 'عرض سعر للتوثيق' },
+  { value: 'GENERAL', label: 'عام' },
 ] as const;

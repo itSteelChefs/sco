@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "canonicalRegistry": "docs/oss/registry.json",
+  "custodiedSources": [],
+  "notes": [
+    "No upstream source is currently copied into the product by this program.",
+    "Direct dependency inventory is derived reproducibly by scripts/oss/inventory.mjs from workspace manifests and installed package metadata.",
+    "A null upstreamVersion or sourceHash means catalog/evaluation state, never an admitted source artifact."
+  ]
+}

@@ -1,0 +1,35 @@
+:root {
+  --ops-bg: #eef1f4;
+  --ops-elevated: #f7f9fb;
+  --ops-ink: #0c1b24;
+  --ops-ink-soft: #243842;
+  --ops-muted: #5a6b76;
+  --ops-line: #c9d3db;
+  --ops-accent: #16485a;
+  --ops-accent-hover: #0f3644;
+  --ops-accent-soft: rgba(22, 72, 90, 0.08);
+  --ops-warn: #8a5a12;
+  --ops-warn-bg: #fff6e8;
+  --ops-danger: #7a1f1f;
+  --ops-danger-bg: #fdecec;
+  --ops-ok: #14532d;
+  --ops-ok-bg: #e8f5ec;
+  --ops-space: clamp(1rem, 2.5vw, 1.75rem);
+  --ops-font: "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  --ops-max: 72rem;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--ops-font);
+  color: var(--ops-ink);
+  background: var(--ops-bg);
+  line-height: 1.6;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid #2a7a94; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

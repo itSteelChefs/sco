@@ -1,9 +1,9 @@
 'use client';
 
 import { ApiClientError, type PartnerDocumentCategory, type PartnerDocumentUploadResult } from '@sco/contracts';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { readinessApi } from '../../lib/readiness-api';
-import { DOCUMENT_CATEGORY_OPTIONS } from './readiness-labels';
+import { DOCUMENT_CATEGORY_OPTIONS, documentCategoryLabelAr, documentGroupLabelAr } from './readiness-labels';
 import styles from './readiness.module.css';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -12,6 +12,8 @@ const ALLOWED = new Set(['application/pdf', 'image/png', 'image/jpeg', 'text/pla
 type Props = {
   companyId: string;
   onUploaded?: (doc: PartnerDocumentUploadResult) => void;
+  /** Optional externally managed session uploads (e.g. Verify page). */
+  sessionDocuments?: PartnerDocumentUploadResult[];
 };
 
 function fileToBase64(file: File): Promise<string> {
@@ -27,13 +29,30 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-export function DocumentsPanel({ companyId, onUploaded }: Props) {
+export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Props) {
   const [category, setCategory] = useState<PartnerDocumentCategory>('VERIFY_QUOTE');
   const [file, setFile] = useState<File | null>(null);
   const [uploads, setUploads] = useState<PartnerDocumentUploadResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const allUploads = useMemo(() => {
+    const map = new Map<string, PartnerDocumentUploadResult>();
+    for (const doc of [...(sessionDocuments ?? []), ...uploads]) map.set(doc.documentId, doc);
+    return [...map.values()];
+  }, [sessionDocuments, uploads]);
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, PartnerDocumentUploadResult[]>();
+    for (const doc of allUploads) {
+      const key = doc.category || 'GENERAL';
+      const list = groups.get(key) ?? [];
+      list.push(doc);
+      groups.set(key, list);
+    }
+    return [...groups.entries()];
+  }, [allUploads]);
 
   async function upload() {
     setError('');
@@ -82,12 +101,17 @@ export function DocumentsPanel({ companyId, onUploaded }: Props) {
   return (
     <section className={styles.panel} aria-labelledby="docs-title" data-testid="documents-panel">
       <div className={styles.statusRow}>
-        <h2 id="docs-title">مستندات الشريك</h2>
-        <span className={styles.truth}>LIVE</span>
+        <h2 id="docs-title">مركز المستندات</h2>
+        <span className={styles.truth}>LIVE · رفع فعّال</span>
       </div>
       <p className={styles.panelLead}>
-        رفع مستندات ضمن فئات موجّهة. تُحفظ النسخة الأصلية لدى سكو طوال العلاقة النشطة وما بعدها حسب سياسة الاحتفاظ —
-        دون عرض تفاصيل داخلية للمعالجة.
+        رفع وتصنيف مستندات الشريك. قائمة الخادم الكاملة والتنزيل الآمن ينتظران عقد Codex1 — لا تُعرض صفوف
+        وهمية.
+      </p>
+
+      <p className={styles.note} role="status" data-testid="documents-server-list-waiting">
+        قائمة المستندات من الخادم والتنزيل عبر المسار الرسمي: بانتظار واجهة الخلفية المعتمدة. ما يظهر أدناه
+        هو مرفوعات هذه الجلسة الناجحة فقط.
       </p>
 
       <div className={styles.form}>
@@ -100,7 +124,9 @@ export function DocumentsPanel({ companyId, onUploaded }: Props) {
             disabled={busy}
           >
             {DOCUMENT_CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </div>
@@ -113,7 +139,11 @@ export function DocumentsPanel({ companyId, onUploaded }: Props) {
             disabled={busy}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-          {file ? <p className={styles.hint}>{file.name} · {(file.size / 1024).toFixed(1)} ك.ب</p> : null}
+          {file ? (
+            <p className={styles.hint}>
+              {file.name} · {(file.size / 1024).toFixed(1)} ك.ب
+            </p>
+          ) : null}
         </div>
         <div className={styles.actions}>
           <button type="button" className={styles.button} disabled={busy || !file} onClick={() => void upload()}>
@@ -124,20 +154,39 @@ export function DocumentsPanel({ companyId, onUploaded }: Props) {
 
       <div className={styles.liveRegion} aria-live="polite">
         {message}
-        {error ? <p className={styles.fieldError} role="alert">{error}</p> : null}
+        {error ? (
+          <p className={styles.fieldError} role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
 
-      {uploads.length ? (
-        <ul className={styles.agreementList}>
-          {uploads.map((doc) => (
-            <li key={doc.documentId}>
-              <strong>{doc.filename}</strong>
-              <span className={styles.badge}>{doc.category}</span>
-              <span className={styles.hint}>{doc.documentId.slice(0, 8)}…</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {allUploads.length === 0 ? (
+        <p className={styles.hint} role="status">
+          لا مرفوعات في هذه الجلسة بعد.
+        </p>
+      ) : (
+        grouped.map(([cat, docs]) => (
+          <div key={cat}>
+            <h3>{documentGroupLabelAr(cat)}</h3>
+            <ul className={styles.agreementList}>
+              {docs.map((doc) => (
+                <li key={doc.documentId}>
+                  <strong>{doc.filename}</strong>
+                  <span className={styles.badge}>{documentCategoryLabelAr(doc.category)}</span>
+                  <span className={styles.hint}>
+                    {new Date(doc.createdAt).toLocaleString('ar')} · {doc.byteSize} بايت
+                  </span>
+                  {doc.linkedEntityType ? (
+                    <span className={styles.hint}>مرتبط بمسار: {doc.linkedEntityType}</span>
+                  ) : null}
+                  <span className={styles.hint}>معرّف مختصر: {doc.documentId.slice(0, 8)}…</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
     </section>
   );
 }

@@ -64,7 +64,7 @@ function mapSaveError(failure: unknown): string {
   if (failure.status === 401) return 'انتهت الجلسة. أعد تسجيل الدخول.';
   if (failure.status === 403) return 'لا تملك صلاحية حفظ مسودة التأهيل.';
   if (failure.code === 'QUALIFICATION_ALREADY_SUBMITTED' || failure.status === 409) {
-    return 'التأهيل مُرسَل مسبقًا ولا يمكن تعديل المسودة.';
+    return 'التأهيل مُرسَل مسبقًا ولا يمكن تعديل المسودة من الخادم حاليًا.';
   }
   if (failure.code === 'VALIDATION_FAILED' || failure.status === 400) return 'تحقق من الحقول المطلوبة.';
   return 'تعذر حفظ المسودة. حاول مرة أخرى.';
@@ -80,7 +80,9 @@ export function QualificationForm({ companyId, companyNameHint, onChanged }: Pro
 
   const status = qualification?.status ?? 'NONE';
   const presentation = mapQualificationPresentation(status);
+  const actionRequired = presentation === 'ACTION_REQUIRED';
   const readOnly = status === 'SUBMITTED' || status === 'UNDER_REVIEW' || status === 'APPROVED';
+  const correctionBlocked = actionRequired && readOnly;
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +95,11 @@ export function QualificationForm({ companyId, companyNameHint, onChanged }: Pro
         setQualification(current);
         setValues(fromQualification(current, companyNameHint));
         setPhase('idle');
-        setStatusMessage(current ? `الحالة: ${current.status}` : 'لا توجد مسودة بعد — ابدأ بالحفظ لإنشائها.');
+        setStatusMessage(
+          current
+            ? `الحالة: ${qualificationLabelAr(mapQualificationPresentation(current.status))}`
+            : 'لا توجد مسودة بعد — ابدأ بالحفظ لإنشائها.',
+        );
       })
       .catch((failure) => {
         if (cancelled) return;
@@ -134,7 +140,9 @@ export function QualificationForm({ companyId, companyNameHint, onChanged }: Pro
       setQualification(saved);
       setValues(fromQualification(saved, companyNameHint));
       setPhase('saved');
-      setStatusMessage(`تم الحفظ · الحالة ${saved.status} · ${new Date(saved.updatedAt).toLocaleString('ar')}`);
+      setStatusMessage(
+        `تم الحفظ · الحالة ${qualificationLabelAr(mapQualificationPresentation(saved.status))} · ${new Date(saved.updatedAt).toLocaleString('ar')}`,
+      );
       onChanged?.();
     } catch (failure) {
       setPhase('failed');
@@ -177,7 +185,9 @@ export function QualificationForm({ companyId, companyNameHint, onChanged }: Pro
       setQualification(submitted);
       setValues(fromQualification(submitted, companyNameHint));
       setPhase('saved');
-      setStatusMessage(`تم الإرسال · الحالة ${submitted.status}`);
+      setStatusMessage(
+        `تم الإرسال · الحالة ${qualificationLabelAr(mapQualificationPresentation(submitted.status))}`,
+      );
       setShowReview(false);
       onChanged?.();
     } catch (failure) {
@@ -214,8 +224,23 @@ export function QualificationForm({ companyId, companyNameHint, onChanged }: Pro
 
       {readOnly ? (
         <p className={styles.note} role="status">
-          الحالة {status} — النموذج للقراءة فقط.
+          الحالة {qualificationLabelAr(presentation)} — النموذج للقراءة فقط.
         </p>
+      ) : null}
+
+      {actionRequired ? (
+        <div className={styles.note} role="status" data-testid="qualification-action-required">
+          <p>
+            <strong>يتطلب إجراءً.</strong> يلزم تصحيح البيانات وإعادة الإرسال عندما يسمح الخادم بالتعديل.
+          </p>
+          {correctionBlocked ? (
+            <p className={styles.hint}>
+              الخادم لا يفتح تعديل المسودة بعد الإرسال/الرفض في هذه النسخة. لا يُعرض نجاح وهمي لإعادة الإرسال.
+            </p>
+          ) : (
+            <p className={styles.hint}>حدّث الحقول ثم احفظ وأعد الإرسال عبر الخادم.</p>
+          )}
+        </div>
       ) : null}
 
       <form className={styles.form} onSubmit={onReview} noValidate>

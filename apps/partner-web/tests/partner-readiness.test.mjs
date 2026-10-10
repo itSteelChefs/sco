@@ -25,15 +25,16 @@ const complete = {
 test('F-01 readiness page renders for authorized company member surface', async () => {
   const page = await read('../app/portal/readiness/page.tsx');
   const workspace = await read('../components/readiness/readiness-workspace.tsx');
+  const session = await read('../components/portal/use-portal-session.ts');
   assert.match(page, /ReadinessWorkspace/);
   assert.match(workspace, /جاهزية الشريك/);
-  assert.match(workspace, /partnerJourney/);
+  assert.match(session, /partnerJourney/);
 });
 
 test('F-02 unauthenticated readiness follows auth redirect behavior', async () => {
-  const workspace = await read('../components/readiness/readiness-workspace.tsx');
+  const session = await read('../components/portal/use-portal-session.ts');
   const middleware = await read('../middleware.ts');
-  assert.match(workspace, /replace\('\/login'\)/);
+  assert.match(session, /replace\('\/login'\)/);
   assert.doesNotMatch(middleware, /readiness/);
 });
 
@@ -103,6 +104,7 @@ test('F-13 mobile smoke styles present', async () => {
 
 test('F-14 no hidden future entitlements implied', async () => {
   const workspace = await read('../components/readiness/readiness-workspace.tsx');
+  const verify = await read('../components/readiness/verify-panel.tsx');
   assert.doesNotMatch(workspace, /Procurement active|marketplace|بدء طلب شراء/);
-  assert.match(workspace, /Quote Check/);
+  assert.match(verify, /Quote Check/);
 });

@@ -14,4 +14,5 @@ export const readinessApi = {
   verifyCreate: api.partnerVerifyCreate.bind(api),
   verifyAttachQuote: api.partnerVerifyAttachQuote.bind(api),
   verifySubmit: api.partnerVerifySubmit.bind(api),
+  verifyGetResult: api.partnerVerifyGetResult.bind(api),
 };

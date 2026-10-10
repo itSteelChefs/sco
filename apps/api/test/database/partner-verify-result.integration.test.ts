@@ -223,10 +223,10 @@ describe('Verify V0.1 Batch 1-E Partner-facing Verify Result', () => {
       const { request } = await buildFinalResult(companyA, writer, 'FULL');
       const service = new PartnerVerifyService(new TenantTransactionService(new RealRuntimeDatabase() as never), new PurposeDecisionAuthorityService());
       const dto = await service.getResult({ membershipId: id(), userId: reader, companyId: companyA, status: 'ACTIVE' }, request);
-      expect(Object.keys(dto).sort()).toEqual(['classification', 'coverage', 'finalizedAt', 'requestId', 'resultId', 'revisionId', 'runId', 'status'].sort());
+      expect(Object.keys(dto).sort()).toEqual(['classification', 'coverage', 'finalizedAt', 'requestId', 'resultId', 'revisionId', 'runId', 'status', 'offerValue', 'verifiedReferenceScope', 'gap', 'confidence', 'proposedAction'].sort());
       expect(Object.keys(dto.coverage[0]).sort()).toEqual(['currency', 'excludedLineCount', 'insufficientLineCount', 'lineCoveragePercent', 'totalLineCount', 'valueCoveragePercent', 'verifiedLineCount'].sort());
       const noConfidential = JSON.stringify(dto).toLowerCase();
-      for (const forbidden of ['supplier', 'purchase_source', 'purchasesource', 'evidence', 'negotiation', 'confidence', 'variance', 'raw', 'fingerprint', 'audit']) {
+      for (const forbidden of ['supplier', 'purchase_source', 'purchasesource', 'evidence', 'negotiation', 'variance', 'raw', 'fingerprint', 'audit']) {
         expect(noConfidential).not.toMatch(forbidden);
       }
     });

@@ -618,11 +618,51 @@ export class InternalDatabaseService implements OnModuleDestroy {
   async qualificationCreateForCompany(actor: string, companyId: string, legalName: string, contactEmail: string) {
     return (await this.pool.query('SELECT * FROM public.internal_qualification_create_for_company($1,$2,$3,$4)', [actor, companyId, legalName, contactEmail])).rows[0];
   }
-  async qualificationDecide(actor: string, id: string, status: 'APPROVED' | 'REJECTED', reason?: string) {
+  async qualificationDecide(actor: string, id: string, status: 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'REJECTED', reason?: string) {
+    if (status === 'UNDER_REVIEW' || status === 'ACTION_REQUIRED') {
+      return (await this.pool.query('SELECT * FROM public.internal_qualification_transition($1,$2,$3,$4,$5)', [actor, id, status, reason ?? null, null])).rows[0] ?? null;
+    }
     return (await this.pool.query('SELECT * FROM public.internal_qualification_decide($1,$2,$3,$4)', [actor, id, status, reason ?? null])).rows[0] ?? null;
   }
   async qualificationList(actor: string) {
     return (await this.pool.query('SELECT * FROM public.internal_qualification_list($1)', [actor])).rows;
+  }
+  async documentList(actor: string, limit: number, offset: number) {
+    return (await this.pool.query('SELECT * FROM public.internal_document_list($1,$2,$3)', [actor, limit, offset])).rows;
+  }
+  async verifyQueue(actor: string, limit: number, offset: number, status?: string) {
+    return (await this.pool.query('SELECT * FROM public.internal_verify_queue($1,$2,$3,$4)', [actor, limit, offset, status ?? null])).rows;
+  }
+  async prepareOperationalVerifyResult(actor: string, input: {
+    runId: string; offerValue?: unknown; verifiedReferenceScope?: unknown; gap?: unknown; confidence?: unknown;
+    proposedAction: string; exclusions?: unknown; supersedesResultId?: string; correlationId?: string;
+  }) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.actor_id',$1,true)", [actor]);
+      const result = await client.query<{ id: string }>(
+        'SELECT public.internal_verify_result_prepare_operational($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8::jsonb,$9,$10) AS id',
+        [actor, input.runId, JSON.stringify(input.offerValue ?? {}), JSON.stringify(input.verifiedReferenceScope ?? {}), JSON.stringify(input.gap ?? {}), JSON.stringify(input.confidence ?? {}), input.proposedAction, JSON.stringify(input.exclusions ?? {}), input.supersedesResultId ?? null, input.correlationId ?? null],
+      );
+      await client.query('COMMIT');
+      return result.rows[0]?.id ?? null;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+  async finalizeVerifyResult(actor: string, resultId: string, correlationId?: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.actor_id',$1,true)", [actor]);
+      await client.query('SELECT public.internal_verify_result_finalize($1,$2,$3)', [actor, resultId, correlationId ?? null]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
   }
   async partnershipCreate(actor: string, companyId: string, type: 'BUYER_PARTNERSHIP' | 'SUPPLIER_PARTNERSHIP') {
     return (await this.pool.query('SELECT * FROM public.internal_partnership_create($1,$2,$3)', [actor, companyId, type])).rows[0] ?? null;

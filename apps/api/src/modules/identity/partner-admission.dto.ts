@@ -18,8 +18,8 @@ export class CreateQualificationDto {
 }
 
 export class QualificationDecisionDto {
-  @IsIn(['APPROVED', 'REJECTED'])
-  status!: 'APPROVED' | 'REJECTED';
+  @IsIn(['UNDER_REVIEW', 'ACTION_REQUIRED', 'APPROVED', 'REJECTED'])
+  status!: 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'REJECTED';
 
   @IsString()
   @MinLength(1)

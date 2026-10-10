@@ -10,7 +10,7 @@ export type PartnerJourney = {
 	operational: { procurementAccess: 'AVAILABLE' | 'RESTRICTED'; reason?: PartnerJourneyReason };
 	relationship: {
 		stage: 'REGISTRATION' | 'QUALIFICATION' | 'AGREEMENT' | 'APPROVAL' | 'ONBOARDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
-		qualification: 'NONE' | 'DRAFT' | 'APPLICATION' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+		qualification: 'NONE' | 'DRAFT' | 'APPLICATION' | 'SUBMITTED' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'REJECTED';
 		partnership: 'NONE' | 'UNDER_REVIEW' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
 		agreementsSatisfied: boolean;
 		pendingAgreements: Array<{ agreementType: string; version: string; status: string; actionable: boolean }>;
@@ -50,6 +50,9 @@ export type PartnerQualificationDraft = {
 export type PartnerQualification = {
 	id: string;
 	status: string;
+	reviewState: string;
+	actionRequired: boolean;
+	actionRequiredReason: string | null;
 	companyName: string;
 	commercialIdentifier: string | null;
 	responsiblePerson: string | null;
@@ -85,6 +88,27 @@ export type PartnerDocumentUploadResult = {
 	linkedEntityType: string | null;
 	linkedEntityId: string | null;
 	createdAt: string;
+};
+export type PartnerDocumentMetadata = {
+	documentId: string;
+	filename: string;
+	contentType: string;
+	byteSize: number;
+	status: string;
+	category: string | null;
+	retentionClass: string | null;
+	linkedEntityType: string | null;
+	linkedEntityId: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+export type PartnerDocumentPage = Page<PartnerDocumentMetadata>;
+export type PartnerVerifyOperationalResult = {
+	offerValue: unknown;
+	verifiedReferenceScope: unknown;
+	gap: unknown;
+	confidence: unknown;
+	proposedAction: string;
 };
 
 export type PartnerVerifyDraft = { requestId: string; status: 'DRAFT'; productMode: 'QUOTE_CHECK' };
@@ -168,6 +192,8 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 			request<PartnerQualification>('/api/v1/partner/qualification/submit', { method: 'POST', companyId, body: {}, signal }),
 		partnerDocumentUpload: (companyId: string, body: PartnerDocumentUploadInput, signal?: AbortSignal) =>
 			request<PartnerDocumentUploadResult>('/api/v1/partner/documents/upload', { method: 'POST', companyId, body, signal }),
+		partnerDocuments: (companyId: string, page = 1, pageSize = 20, signal?: AbortSignal) =>
+			request<PartnerDocumentPage>(`/api/v1/partner/documents?page=${page}&pageSize=${pageSize}`, { companyId, signal }),
 		partnerVerifyCreate: (companyId: string, signal?: AbortSignal) =>
 			request<PartnerVerifyDraft>('/api/v1/partner/verify/requests', { method: 'POST', companyId, body: { productMode: 'QUOTE_CHECK' }, signal }),
 		partnerVerifyAttachQuote: (companyId: string, requestId: string, body: PartnerVerifyAttachQuoteInput, signal?: AbortSignal) =>

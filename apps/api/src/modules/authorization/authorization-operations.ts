@@ -2,6 +2,9 @@ import { PURPOSE_REQUIREMENT, type PurposeRequirement } from '../rbac/purpose-re
 
 export const AUTHORIZATION_OPERATION = {
   PARTNER_VERIFY_RESULT_READ: 'partner_verify.result.read',
+  PARTNER_VERIFY_REQUEST_CREATE: 'partner_verify.request.create',
+  PARTNER_VERIFY_QUOTE_ATTACH: 'partner_verify.quote.attach',
+  PARTNER_VERIFY_REQUEST_SUBMIT: 'partner_verify.request.submit',
   PROCUREMENT_DOCUMENT_EXTRACT: 'procurement_document.extract',
   PARTNER_JOURNEY_READ: 'partner_journey.read',
   PARTNER_WORKSPACE_READ: 'partner_workspace.read',
@@ -36,6 +39,27 @@ export type OperationDescriptor = {
 const registry: Readonly<Record<AuthorizationOperation, OperationDescriptor>> = Object.freeze({
   [AUTHORIZATION_OPERATION.PARTNER_VERIFY_RESULT_READ]: Object.freeze({
     permission: 'partner_verify.read',
+    purpose: PURPOSE_REQUIREMENT.VERIFY,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'VERIFY_REQUEST', routeParam: 'requestId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_VERIFY_REQUEST_CREATE]: Object.freeze({
+    permission: 'partner_verify.write',
+    purpose: PURPOSE_REQUIREMENT.VERIFY,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'COMPANY', routeParam: null }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_VERIFY_QUOTE_ATTACH]: Object.freeze({
+    permission: 'partner_verify.write',
+    purpose: PURPOSE_REQUIREMENT.VERIFY,
+    companyTypes: Object.freeze(['PARTNER']),
+    partnerClassD: true,
+    resource: Object.freeze({ kind: 'VERIFY_REQUEST', routeParam: 'requestId' }),
+  }),
+  [AUTHORIZATION_OPERATION.PARTNER_VERIFY_REQUEST_SUBMIT]: Object.freeze({
+    permission: 'partner_verify.write',
     purpose: PURPOSE_REQUIREMENT.VERIFY,
     companyTypes: Object.freeze(['PARTNER']),
     partnerClassD: true,

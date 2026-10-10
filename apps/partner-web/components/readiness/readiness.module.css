@@ -212,6 +212,17 @@
   background: var(--sco-accent, #16485a);
   color: #fff;
   border: 1px solid var(--sco-accent, #16485a);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+a.buttonGhost {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .button:disabled,

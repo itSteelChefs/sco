@@ -50,6 +50,52 @@ export function qualificationLabelAr(presentation: PresentationReadiness): strin
   }
 }
 
+export function relationshipStageLabelAr(stage: string | null | undefined): string {
+  switch (stage) {
+    case 'REGISTRATION':
+      return 'تسجيل';
+    case 'QUALIFICATION':
+      return 'تأهيل';
+    case 'AGREEMENT':
+      return 'اتفاقيات';
+    case 'APPROVAL':
+      return 'اعتماد';
+    case 'ONBOARDING':
+      return 'تهيئة';
+    case 'ACTIVE':
+      return 'نشطة';
+    case 'SUSPENDED':
+      return 'موقوفة';
+    case 'REVOKED':
+      return 'ملغاة';
+    case 'REJECTED':
+      return 'مرفوضة';
+    default:
+      return stage ? stage : 'غير متاحة';
+  }
+}
+
+export function partnershipStatusLabelAr(status: string | null | undefined): string {
+  switch (status) {
+    case 'NONE':
+      return 'لا توجد';
+    case 'UNDER_REVIEW':
+      return 'قيد المراجعة';
+    case 'APPROVED':
+      return 'معتمدة';
+    case 'ACTIVE':
+      return 'نشطة';
+    case 'SUSPENDED':
+      return 'موقوفة';
+    case 'REVOKED':
+      return 'ملغاة';
+    case 'REJECTED':
+      return 'مرفوضة';
+    default:
+      return status ? status : '—';
+  }
+}
+
 export function agreementTypeLabelAr(type: string): string {
   if (type === 'BINDING_CONFIDENTIALITY') return 'السرية الملزمة';
   if (type === 'PARTNERSHIP_TERMS') return 'شروط الشراكة';
@@ -69,6 +115,54 @@ export function agreementStatusLabelAr(status: string): string {
     default:
       return status;
   }
+}
+
+export function verifyRequestStatusLabelAr(status: string | null | undefined): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'مسودة';
+    case 'SUBMITTED':
+      return 'مُرسَل';
+    case 'IN_REVIEW':
+      return 'قيد المراجعة';
+    case 'COMPLETED':
+      return 'مكتمل';
+    case 'CANCELLED':
+      return 'ملغى';
+    default:
+      return status ? status : '—';
+  }
+}
+
+export function verifyClassificationLabelAr(classification: string | null | undefined): string {
+  if (!classification) return '—';
+  switch (classification) {
+    case 'WITHIN_RANGE':
+      return 'ضمن النطاق المرجعي';
+    case 'ABOVE_RANGE':
+      return 'أعلى من النطاق المرجعي';
+    case 'BELOW_RANGE':
+      return 'أدنى من النطاق المرجعي';
+    case 'PARTIAL':
+      return 'تحقق جزئي';
+    case 'INSUFFICIENT':
+      return 'بيانات غير كافية';
+    default:
+      return classification;
+  }
+}
+
+export function coverageQualityLabelAr(entry: {
+  totalLineCount: number;
+  verifiedLineCount: number;
+  insufficientLineCount: number;
+}): string {
+  if (entry.totalLineCount <= 0) return 'لا بنود';
+  if (entry.verifiedLineCount >= entry.totalLineCount && entry.insufficientLineCount === 0) {
+    return 'تحقق كامل';
+  }
+  if (entry.verifiedLineCount > 0) return 'تحقق جزئي';
+  return 'غير قابل للتحقق';
 }
 
 export const LAUNCH_AGREEMENT_FOCUS = new Set(['BINDING_CONFIDENTIALITY', 'PARTNERSHIP_TERMS']);
@@ -106,3 +200,22 @@ export const DOCUMENT_CATEGORY_OPTIONS = [
   { value: 'VERIFY_QUOTE', label: 'عرض سعر للتوثيق' },
   { value: 'GENERAL', label: 'عام' },
 ] as const;
+
+export function documentCategoryLabelAr(category: string): string {
+  return DOCUMENT_CATEGORY_OPTIONS.find((option) => option.value === category)?.label ?? category;
+}
+
+export function documentGroupLabelAr(category: string): string {
+  switch (category) {
+    case 'QUALIFICATION_SUPPORT':
+      return 'مستندات التأهيل';
+    case 'AGREEMENT_ARTIFACT':
+      return 'مستندات الاتفاقيات';
+    case 'VERIFY_QUOTE':
+      return 'مستندات التوثيق';
+    case 'GENERAL':
+      return 'مستندات عامة';
+    default:
+      return 'مستندات أخرى';
+  }
+}

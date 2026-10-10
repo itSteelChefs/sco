@@ -2,6 +2,7 @@ import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { MetricsService } from '../observability/metrics.service.js';
 import { createObservedPool } from './observed-pool.js';
+import type { PartnerMembershipProvisionResult } from '../modules/partner-provisioning/partner-provisioning.types.js';
 
 export type PricingAllocationInput = { snapshotId: string; quantity: number; fxRate?: number; asOfDate?: string; fxReason?: string };
 export type PricingLineInput = { lineNumber: number; productIdentityId: string; quantity: number; unitId: string; unitSellingPrice: number; taxTreatmentCode?: string; taxRate?: number; taxAmount?: number; allocations: PricingAllocationInput[] };
@@ -273,6 +274,44 @@ export class InternalDatabaseService implements OnModuleDestroy {
   }
   async retireDisclosureAlias(actor: string, aliasId: string): Promise<void> {
     await this.pool.query('SELECT public.internal_disclosure_alias_retire($1,$2)', [actor, aliasId]);
+  }
+  async provisionPartnerMembership(
+    actor: string,
+    targetUserId: string,
+    targetCompanyId: string,
+    operationKey: string,
+  ): Promise<PartnerMembershipProvisionResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.actor_id', $1, true)", [actor]);
+      const authority = await client.query<{ authority_company_id: string }>(
+        'SELECT public.internal_partner_provision_authority($1) AS authority_company_id',
+        [actor],
+      );
+      const authorityCompanyId = authority.rows[0]?.authority_company_id;
+      if (!authorityCompanyId) throw new Error('PARTNER_PROVISION_AUTHORITY_FORBIDDEN');
+      await client.query("SELECT set_config('app.tenant_id', $1, true)", [authorityCompanyId]);
+      const result = await client.query<{
+        operation_id: string;
+        membership_id: string;
+        user_id: string;
+        company_id: string;
+        membership_status: string;
+        outcome: PartnerMembershipProvisionResult['outcome'];
+      }>('SELECT * FROM public.internal_partner_membership_provision($1,$2,$3)', [targetUserId, targetCompanyId, operationKey]);
+      const row = result.rows[0];
+      if (!row) throw new Error('PARTNER_PROVISION_RESULT_MISSING');
+      await client.query('COMMIT');
+      return {
+        operationId: row.operation_id,
+        membershipId: row.membership_id,
+        userId: row.user_id,
+        companyId: row.company_id,
+        membershipStatus: row.membership_status,
+        outcome: row.outcome,
+      };
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
   poolStats() { return { total: this.pool.totalCount, idle: this.pool.idleCount, waiting: this.pool.waitingCount }; }
   async canSelfApprovePurchaseCost(actorId: string): Promise<boolean> { const result=await this.pool.query('SELECT public.can_self_approve_purchase_cost($1) AS allowed',[actorId]); return result.rows[0].allowed===true; }

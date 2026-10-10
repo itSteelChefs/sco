@@ -20,6 +20,7 @@ import { ProcurementIntelligenceModule } from './modules/procurement-intelligenc
 import { ServiceAccessModule } from './modules/service-access/service-access.module.js';
 import { WorkspaceModule } from './modules/workspaces/workspace.module.js';
 import { PartnerJourneyModule } from './modules/partner-journey/partner-journey.module.js';
+import { PartnerProvisioningModule } from './modules/partner-provisioning/partner-provisioning.module.js';
 
-@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule, DisclosureModule, ProcurementIntelligenceModule, ServiceAccessModule, WorkspaceModule, PartnerJourneyModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
+@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule, DisclosureModule, ProcurementIntelligenceModule, ServiceAccessModule, WorkspaceModule, PartnerJourneyModule, PartnerProvisioningModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
 export class AppModule implements NestModule { configure(consumer: MiddlewareConsumer) { consumer.apply(correlationIdMiddleware).forRoutes('*'); } }

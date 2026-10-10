@@ -64,6 +64,13 @@ model QualificationApplication {
   companyId String? @map("company_id") @db.Uuid
   legalName String @map("legal_name")
   contactEmail String @map("contact_email")
+  commercialIdentifier String? @map("commercial_identifier")
+  responsiblePerson String? @map("responsible_person")
+  city String?
+  sector String?
+  needType String? @map("need_type")
+  procurementSize String? @map("procurement_size")
+  procurementFrequency String? @map("procurement_frequency")
   status QualificationStatus @default(APPLICATION)
   submittedBy String? @map("submitted_by") @db.Uuid
   reviewedBy String? @map("reviewed_by") @db.Uuid
@@ -646,7 +653,9 @@ enum ServiceEntitlementState {
 }
 
 enum QualificationStatus {
+  DRAFT
   APPLICATION
+  SUBMITTED
   UNDER_REVIEW
   APPROVED
   REJECTED

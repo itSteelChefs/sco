@@ -20,7 +20,7 @@ import type {
   UnavailableReason,
 } from './partner-journey.types.js';
 
-const QUALIFICATION_STATES: readonly QualificationState[] = ['APPLICATION', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'];
+const QUALIFICATION_STATES: readonly QualificationState[] = ['DRAFT', 'APPLICATION', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'];
 const PARTNERSHIP_STATES: readonly PartnershipState[] = ['UNDER_REVIEW', 'APPROVED', 'ACTIVE', 'SUSPENDED', 'REVOKED', 'REJECTED'];
 // Agreement states a Partner can resolve by accepting the current version.
 const ACTIONABLE_AGREEMENT_STATUSES = new Set(['NOT_ACCEPTED', 'REACCEPTANCE_REQUIRED']);
@@ -145,7 +145,12 @@ export class PartnerJourneyService {
         return make('CONTACT_SCO', 'SCO');
       // Agreements are requested of the Partner only after qualification has been approved.
       case 'REGISTRATION':
+        return make('AWAIT_SCO_REVIEW', 'SCO');
       case 'QUALIFICATION':
+        // Partner-owned draft vs awaiting SCO after submit.
+        if (relationship.qualification === 'DRAFT' || relationship.qualification === 'APPLICATION') {
+          return make('NONE', 'PARTNER');
+        }
         return make('AWAIT_SCO_REVIEW', 'SCO');
       default:
         break;

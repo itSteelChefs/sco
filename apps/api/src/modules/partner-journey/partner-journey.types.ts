@@ -14,7 +14,7 @@ export type JourneyStage =
   | 'REVOKED'
   | 'REJECTED';
 
-export type QualificationState = 'NONE' | 'APPLICATION' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+export type QualificationState = 'NONE' | 'DRAFT' | 'APPLICATION' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
 export type PartnershipState = 'NONE' | 'UNDER_REVIEW' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'REJECTED';
 
 export type JourneyNextActionCode = 'ACCEPT_AGREEMENTS' | 'AWAIT_SCO_REVIEW' | 'CONTACT_SCO' | 'NONE';

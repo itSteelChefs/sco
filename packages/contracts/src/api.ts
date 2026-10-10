@@ -112,6 +112,27 @@ export type PartnerVerifyAttachQuoteInput = {
 export type PartnerVerifyAttachResult = { requestId: string; revisionId: string; status: string };
 export type PartnerVerifySubmitResult = { requestId: string; revisionId: string; status: 'SUBMITTED' };
 
+/** Partner-visible Verify result — fields match backend PartnerVerifyResultDto (Wave2). */
+export type PartnerVerifyCoverageEntry = {
+	currency: string;
+	totalLineCount: number;
+	verifiedLineCount: number;
+	excludedLineCount: number;
+	insufficientLineCount: number;
+	lineCoveragePercent: number;
+	valueCoveragePercent: number;
+};
+export type PartnerVerifyResult = {
+	requestId: string;
+	revisionId: string;
+	runId: string;
+	resultId: string;
+	status: string;
+	classification: string;
+	finalizedAt: string;
+	coverage: PartnerVerifyCoverageEntry[];
+};
+
 export class ApiClientError extends Error {
 	constructor(
 		public readonly status: number,
@@ -174,6 +195,8 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 			request<PartnerVerifyAttachResult>(`/api/v1/partner/verify/requests/${requestId}/quote`, { method: 'POST', companyId, body, signal }),
 		partnerVerifySubmit: (companyId: string, requestId: string, revisionId: string, signal?: AbortSignal) =>
 			request<PartnerVerifySubmitResult>(`/api/v1/partner/verify/requests/${requestId}/submit`, { method: 'POST', companyId, body: { revisionId }, signal }),
+		partnerVerifyGetResult: (companyId: string, requestId: string, signal?: AbortSignal) =>
+			request<PartnerVerifyResult>(`/api/v1/partner/verify/requests/${requestId}/result`, { companyId, signal }),
 		companies: (companyId: string, page = 1, pageSize = 25) => request<Page<{ id: string; name: string; type: string; status: string }>>(`/api/v1/internal/companies?page=${page}&pageSize=${pageSize}`, { companyId }),
 	};
 }

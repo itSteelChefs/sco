@@ -42,7 +42,7 @@ async function setup(page, { journeyHandler, agreementHandler, workspaceHandler 
   await page.route('**/api/v1/partner/admission/agreements/accept', (route) => agreementHandler(route));
   await page.route('**/api/v1/partner/admission/agreements', (route) => agreementHandler(route));
   await page.route('**/api/v1/partner/workspace/current', (route) => workspaceHandler(route));
-  await page.goto('/');
+  await page.goto('/portal');
 }
 
 test('renders server-actionable content, accepts only by gesture, refreshes, and never provisions automatically', async ({ page }) => {

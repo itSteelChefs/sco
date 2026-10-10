@@ -4,8 +4,11 @@ const email = 'seed.owner@sco.test';
 const password = 'sco-test-seed-password';
 
 test.describe('Partner launch foundation', () => {
-  test('redirects an anonymous visitor to login', async ({ page }) => {
+  test('serves public reception to anonymous visitors and protects the portal', async ({ page }) => {
     await page.goto('/');
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('heading', { name: /سكو/ })).toBeVisible();
+    await page.goto('/portal');
     await expect(page).toHaveURL(/\/login$/);
   });
 
@@ -22,7 +25,7 @@ test.describe('Partner launch foundation', () => {
     await page.getByLabel('البريد الإلكتروني').fill(email);
     await page.getByLabel('كلمة المرور').fill(password);
     await page.getByRole('button', { name: 'دخول' }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/portal$/);
     await expect(page.getByRole('heading', { name: 'اختر الشركة' })).toBeVisible();
   });
 
@@ -33,7 +36,7 @@ test.describe('Partner launch foundation', () => {
     await page.getByRole('button', { name: 'دخول' }).click();
     await page.getByRole('button', { name: 'تسجيل الخروج' }).click();
     await expect(page).toHaveURL(/\/login$/);
-    await page.goto('/');
+    await page.goto('/portal');
     await expect(page).toHaveURL(/\/login$/);
   });
 
@@ -54,7 +57,7 @@ test.describe('Partner launch foundation', () => {
     await page.getByLabel('كلمة المرور').fill(password);
     await page.getByRole('button', { name: 'دخول' }).click();
     await context.clearCookies();
-    await page.goto('/');
+    await page.goto('/portal');
     await expect(page).toHaveURL(/\/login$/);
   });
 

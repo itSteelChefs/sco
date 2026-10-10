@@ -47,7 +47,7 @@ async function setup(page, { contextHandler, journeyHandler, workspaceHandler, a
   await page.route('**/api/v1/partner/workspace/current', (route) => workspaceHandler?.(route));
   await page.route('**/api/v1/partner/admission/agreements', (route) => agreementsHandler?.(route));
   await page.route('**/api/v1/partner/admission/agreements/accept', (route) => agreementsHandler?.(route));
-  await page.goto('/');
+  await page.goto('/portal');
 }
 
 function companyId(route) {
@@ -298,7 +298,7 @@ test('stale Journey 401 cannot redirect or clear the current company', async ({ 
   await page.getByLabel('الشركة').selectOption('company-b');
   await expect(page.getByText('حالة الشراكة: ACTIVE')).toBeVisible();
   pendingA.release();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/portal$/);
   await expect(page.getByRole('heading', { name: 'Company B' })).toBeVisible();
   await expect(page.getByText('Workspace A')).not.toBeVisible();
 });
@@ -322,7 +322,7 @@ test('stale Workspace GET 401 cannot redirect or erase the current company', asy
   await page.getByLabel('الشركة').selectOption('company-b');
   await expect(page.getByRole('heading', { name: 'Company B' })).toBeVisible();
   pendingA.release();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/portal$/);
   await expect(page.getByRole('heading', { name: 'Company B' })).toBeVisible();
 });
 
@@ -334,7 +334,7 @@ test('current Workspace GET 403 renders sanitized denial without redirect', asyn
   await page.getByLabel('الشركة').selectOption('company-a');
   await expect(page.getByText('لا تملك صلاحية الوصول لهذه الشركة.')).toBeVisible();
   await expect(page.getByText('secret')).not.toBeVisible();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/portal$/);
 });
 
 async function startPendingProvisioning(page) {
@@ -356,7 +356,7 @@ test('stale Workspace POST 401 cannot log out the newer company', async ({ page 
   await page.getByLabel('الشركة').selectOption('company-b');
   await expect(page.getByRole('heading', { name: 'Company B' })).toBeVisible();
   pendingPost.release();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/portal$/);
   await expect(page.getByRole('heading', { name: 'Company B' })).toBeVisible();
   await expect(page.getByText('لا تملك صلاحية إنشاء مساحة العمل.')).not.toBeVisible();
 });

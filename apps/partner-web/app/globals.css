@@ -1,0 +1,63 @@
+:root {
+  --sco-bg: #eef1f4;
+  --sco-bg-elevated: #f7f9fb;
+  --sco-ink: #0c1b24;
+  --sco-ink-soft: #243842;
+  --sco-muted: #5a6b76;
+  --sco-line: #c9d3db;
+  --sco-accent: #16485a;
+  --sco-accent-hover: #0f3644;
+  --sco-accent-soft: rgba(22, 72, 90, 0.08);
+  --sco-hero-plane: #0c1b24;
+  --sco-hero-ink: #f3f6f8;
+  --sco-hero-muted: #b7c4cd;
+  --sco-focus: #2a7a94;
+  --sco-max: 68rem;
+  --sco-space: clamp(1rem, 3vw, 2rem);
+  --sco-font: var(--font-sco-arabic), var(--font-sco-latin), "Segoe UI", Tahoma, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--sco-font);
+  color: var(--sco-ink);
+  background: var(--sco-bg);
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sco-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

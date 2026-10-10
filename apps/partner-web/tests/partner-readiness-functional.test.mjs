@@ -77,14 +77,17 @@ test('FV-01..09 verify Quote Check only wiring', async () => {
   assert.doesNotMatch(panel, /PRICE_CHECK|Price Check/);
   assert.match(panel, /verifyAttachQuote/);
   assert.match(panel, /verifySubmit/);
+  assert.match(panel, /verifyGetResult/);
   assert.match(panel, /VERIFY_QUOTE/);
   assert.match(panel, /RFQ/);
   assert.match(panel, /تفاوض/);
-  assert.doesNotMatch(panel, /confidence|classification/);
+  assert.match(panel, /classification/);
+  assert.doesNotMatch(panel, /confidence|proposedAction|gapAmount/);
   assert.match(panel, /DOCUMENT_LINK_INVALID/);
   assert.match(panel, /status === 403/);
   const contracts = await read('../../../packages/contracts/src/api.ts');
   assert.match(contracts, /productMode: 'QUOTE_CHECK'/);
+  assert.match(contracts, /partnerVerifyGetResult/);
 });
 
 test('contracts client exposes Wave2 partner surfaces', async () => {
@@ -92,5 +95,6 @@ test('contracts client exposes Wave2 partner surfaces', async () => {
   assert.match(contracts, /partnerQualificationCurrent/);
   assert.match(contracts, /partnerDocumentUpload/);
   assert.match(contracts, /partnerVerifyCreate/);
+  assert.match(contracts, /partnerVerifyGetResult/);
   assert.match(contracts, /DRAFT.*SUBMITTED/);
 });

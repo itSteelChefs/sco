@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ApiClientError } from '@sco/contracts';
@@ -29,6 +30,9 @@ export default function PartnerPortalPage() {
     <main>
       <header>
         <h1>SCO Partner Portal</h1>
+        <p>
+          <Link href="/portal/readiness">مساحة جاهزية الشريك</Link>
+        </p>
         <button type="button" onClick={() => void logout()}>
           تسجيل الخروج
         </button>

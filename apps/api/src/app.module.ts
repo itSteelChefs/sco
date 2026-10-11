@@ -24,6 +24,7 @@ import { PartnerProvisioningModule } from './modules/partner-provisioning/partne
 import { ProcurementCoreModule } from './modules/procurement-core/procurement-core.module.js';
 import { BuyResellModule } from './modules/buy-resell/buy-resell.module.js';
 import { EngineeringWorkspaceModule } from './modules/engineering-workspace/engineering-workspace.module.js';
+import { GIntelligenceModule } from './modules/g-intelligence/g-intelligence.module.js';
 
-@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule, DisclosureModule, ProcurementIntelligenceModule, ServiceAccessModule, WorkspaceModule, PartnerJourneyModule, PartnerProvisioningModule, ProcurementCoreModule, BuyResellModule, EngineeringWorkspaceModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
+@Module({ imports: [ObservabilityModule, DatabaseModule, IdentityModule, AuthModule, RbacModule, AuditModule, DocumentsModule, CatalogModule, VerifyModule, DisclosureModule, ProcurementIntelligenceModule, ServiceAccessModule, WorkspaceModule, PartnerJourneyModule, PartnerProvisioningModule, ProcurementCoreModule, BuyResellModule, EngineeringWorkspaceModule, GIntelligenceModule], controllers: [OperationsController, PartnerController, ApiFoundationController, HealthController, MetricsController] })
 export class AppModule implements NestModule { configure(consumer: MiddlewareConsumer) { consumer.apply(correlationIdMiddleware).forRoutes('*'); } }

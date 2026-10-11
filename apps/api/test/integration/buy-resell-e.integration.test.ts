@@ -284,6 +284,14 @@ describe('E buy & resell', () => {
     );
     expect(intentA2.id).toBe(intentA1.id);
 
+    const conflictingIntent = await app.inject({
+      method: 'POST',
+      url: '/api/v1/internal/commercial/purchases/from-selection',
+      headers: { cookie: scoCookie },
+      payload: { selectionCandidateId: selB.selectionId, idempotencyKey: 'intent-a' },
+    });
+    expect(conflictingIntent.statusCode).toBe(409);
+
     // E-P02 invalid selection
     const badSel = await app.inject({
       method: 'POST',
@@ -293,16 +301,24 @@ describe('E buy & resell', () => {
     });
     expect([400, 404]).toContain(badSel.statusCode);
 
-    const intentB = JSON.parse(
-      (
-        await app.inject({
+    const [intentBFirst, intentBReplay] = await Promise.all([
+      app.inject({
           method: 'POST',
           url: '/api/v1/internal/commercial/purchases/from-selection',
           headers: { cookie: scoCookie },
           payload: { selectionCandidateId: selB.selectionId, idempotencyKey: 'intent-b' },
-        })
-      ).body,
-    );
+        }),
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/internal/commercial/purchases/from-selection',
+        headers: { cookie: scoCookie },
+        payload: { selectionCandidateId: selB.selectionId, idempotencyKey: 'intent-b' },
+      }),
+    ]);
+    expect(intentBFirst.statusCode).toBe(201);
+    expect(intentBReplay.statusCode).toBe(201);
+    const intentB = JSON.parse(intentBFirst.body);
+    expect(JSON.parse(intentBReplay.body).id).toBe(intentB.id);
 
     await app.inject({ method: 'POST', url: `/api/v1/internal/commercial/purchases/${intentA1.id}/approve`, headers: { cookie: scoCookie }, payload: {} });
     await app.inject({ method: 'POST', url: `/api/v1/internal/commercial/purchases/${intentB.id}/approve`, headers: { cookie: scoCookie }, payload: {} });
@@ -330,7 +346,7 @@ describe('E buy & resell', () => {
           method: 'POST',
           url: '/api/v1/internal/commercial/supplier-orders',
           headers: { cookie: scoCookie },
-          payload: { intentIds: [intentA1.id, intentB.id], idempotencyKey: 'po-1' },
+          payload: { intentIds: [intentA1.id, intentB.id], idempotencyKey: 'po-1', deliveryContext: 'Riyadh warehouse' },
         })
       ).body,
     );
@@ -438,6 +454,11 @@ describe('E buy & resell', () => {
       ).body,
     );
     expect(full.status).toBe('CONFIRMED');
+    const confirmationRevisionAudit = await owner.query(
+      `SELECT count(*)::int AS n FROM audit_logs WHERE action='commercial.supplier_order.confirmation_revised' AND entity_id=$1`,
+      [order.id],
+    );
+    expect(Number(confirmationRevisionAudit.rows[0].n)).toBe(1);
 
     // Resale per partner with separate sale prices
     const resaleA = JSON.parse(
@@ -553,5 +574,17 @@ describe('E buy & resell', () => {
     expect(journal.rows[0].t).toBeNull();
     const zatca = await owner.query(`SELECT to_regclass('public.zatca_invoices') AS t`);
     expect(zatca.rows[0].t).toBeNull();
+
+    const cancellable = await prepareSelection(cookieA, partnerA, scoCookie, 1, 'Cancelled-HVAC');
+    const cancellableIntent = JSON.parse((await app.inject({
+      method: 'POST', url: '/api/v1/internal/commercial/purchases/from-selection', headers: { cookie: scoCookie },
+      payload: { selectionCandidateId: cancellable.selectionId, idempotencyKey: 'intent-cancel' },
+    })).body);
+    const cancelled = JSON.parse((await app.inject({
+      method: 'POST', url: `/api/v1/internal/commercial/purchases/${cancellableIntent.id}/cancel`, headers: { cookie: scoCookie },
+      payload: { reason: 'commercial withdrawal before PO issue' },
+    })).body);
+    expect(cancelled.status).toBe('CANCELLED');
+    expect(Number((await owner.query(`SELECT count(*)::int AS n FROM audit_logs WHERE action='commercial.purchase.intent_cancelled' AND entity_id=$1`, [cancellableIntent.id])).rows[0].n)).toBe(1);
   });
 });

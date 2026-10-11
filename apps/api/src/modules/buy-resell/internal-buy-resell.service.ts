@@ -36,6 +36,13 @@ export class InternalBuyResellService {
     });
   }
 
+  cancelPurchase(actorUserId: string, intentId: string, reason: string) {
+    return withCommercialErrors(async () => {
+      await this.internal.withScope(actorUserId, (client) => client.query(`SELECT public.internal_commercial_purchase_cancel($1,$2,$3,$4)`, [actorUserId, intentId, reason, randomUUID()]));
+      return this.getIntent(actorUserId, intentId);
+    });
+  }
+
   getIntent(actorUserId: string, intentId: string) {
     return withCommercialErrors(async () => {
       return this.internal.withScope(actorUserId, async (client) => {
@@ -89,6 +96,13 @@ export class InternalBuyResellService {
           randomUUID(),
         ]),
       );
+      return this.getSupplierOrder(actorUserId, orderId);
+    });
+  }
+
+  cancelSupplierOrder(actorUserId: string, orderId: string, reason: string) {
+    return withCommercialErrors(async () => {
+      await this.internal.withScope(actorUserId, (client) => client.query(`SELECT public.internal_commercial_supplier_order_cancel($1,$2,$3,$4)`, [actorUserId, orderId, reason, randomUUID()]));
       return this.getSupplierOrder(actorUserId, orderId);
     });
   }
@@ -189,6 +203,13 @@ export class InternalBuyResellService {
           randomUUID(),
         ]),
       );
+      return this.getResaleInternal(actorUserId, orderId);
+    });
+  }
+
+  cancelResale(actorUserId: string, orderId: string, reason: string) {
+    return withCommercialErrors(async () => {
+      await this.internal.withScope(actorUserId, (client) => client.query(`SELECT public.internal_commercial_resale_cancel($1,$2,$3,$4)`, [actorUserId, orderId, reason, randomUUID()]));
       return this.getResaleInternal(actorUserId, orderId);
     });
   }

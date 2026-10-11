@@ -3,6 +3,7 @@ import { AuthGuard, type RequestWithAuth } from '../auth/guards/auth.guard.js';
 import { ScoInternalGuard } from '../identity/sco-internal.guard.js';
 import {
   ConfirmSupplierOrderDto,
+  CancelCommercialDto,
   CreateAllocationDto,
   CreatePurchaseFromSelectionDto,
   CreateResaleOrderDto,
@@ -30,6 +31,11 @@ export class InternalBuyResellController {
     return this.commercial.approvePurchase(req.scoUser!.id, id);
   }
 
+  @Post('purchases/:id/cancel')
+  cancelPurchase(@Req() req: RequestWithAuth, @Param('id', ParseUUIDPipe) id: string, @Body() body: CancelCommercialDto) {
+    return this.commercial.cancelPurchase(req.scoUser!.id, id, body.reason);
+  }
+
   @Post('supplier-orders')
   createOrder(@Req() req: RequestWithAuth, @Body() body: CreateSupplierOrderDto) {
     return this.commercial.createSupplierOrder(req.scoUser!.id, body);
@@ -48,6 +54,11 @@ export class InternalBuyResellController {
   @Post('supplier-orders/:id/issue')
   issueOrder(@Req() req: RequestWithAuth, @Param('id', ParseUUIDPipe) id: string) {
     return this.commercial.issueSupplierOrder(req.scoUser!.id, id);
+  }
+
+  @Post('supplier-orders/:id/cancel')
+  cancelOrder(@Req() req: RequestWithAuth, @Param('id', ParseUUIDPipe) id: string, @Body() body: CancelCommercialDto) {
+    return this.commercial.cancelSupplierOrder(req.scoUser!.id, id, body.reason);
   }
 
   @Post('supplier-orders/:id/confirm')
@@ -87,5 +98,10 @@ export class InternalBuyResellController {
   @Post('resale-orders/:id/confirm')
   confirmResale(@Req() req: RequestWithAuth, @Param('id', ParseUUIDPipe) id: string) {
     return this.commercial.confirmResale(req.scoUser!.id, id);
+  }
+
+  @Post('resale-orders/:id/cancel')
+  cancelResale(@Req() req: RequestWithAuth, @Param('id', ParseUUIDPipe) id: string, @Body() body: CancelCommercialDto) {
+    return this.commercial.cancelResale(req.scoUser!.id, id, body.reason);
   }
 }

@@ -73,6 +73,12 @@ export class ConfirmSupplierOrderDto {
   lineConfirmations?: LineConfirmationDto[];
 }
 
+export class CancelCommercialDto {
+  @IsString()
+  @MaxLength(500)
+  reason!: string;
+}
+
 export class CreateAllocationDto {
   @IsUUID()
   orderLineId!: string;

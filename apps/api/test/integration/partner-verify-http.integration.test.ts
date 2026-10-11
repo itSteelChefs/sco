@@ -197,9 +197,24 @@ describe('Batch 1-E P3: HTTP-level guard/decorator wiring for GET /api/v1/partne
     const response = await getResult(cookie, request, partnerCompany);
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
-    expect(Object.keys(body).sort()).toEqual(['classification', 'coverage', 'finalizedAt', 'requestId', 'resultId', 'revisionId', 'runId', 'status'].sort());
+    expect(Object.keys(body).sort()).toEqual([
+      'classification',
+      'confidence',
+      'coverage',
+      'finalizedAt',
+      'gap',
+      'offerValue',
+      'proposedAction',
+      'requestId',
+      'resultId',
+      'revisionId',
+      'runId',
+      'status',
+      'verifiedReferenceScope',
+    ].sort());
     expect(body.requestId).toBe(request);
     expect(body.classification).toBe('FULL');
+    expect(body).toHaveProperty('proposedAction');
   });
 
   it('a non-PARTNER (SCO) company actor is denied', async () => {

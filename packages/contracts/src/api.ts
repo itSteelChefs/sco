@@ -451,6 +451,198 @@ export type InternalProcurementRequirementListItem = {
 };
 
 
+
+/* —— Capability G — Procurement Intelligence (internal) —— */
+
+export type GPriceStats = {
+	sampleCount: number;
+	min?: number | string | null;
+	max?: number | string | null;
+	mean?: number | string | null;
+	median?: number | string | null;
+	latest?: number | string | null;
+};
+
+export type GPriceHistory = {
+	calculatedAt: string;
+	sourceMaxEffectiveAt?: string | null;
+	firstObserved?: string | null;
+	currencyCode?: string | null;
+	unitId?: string | null;
+	comparableKey?: string | null;
+	sector?: string | null;
+	supplierCount?: number;
+	metricVersion: number;
+	quotedHistory: GPriceStats;
+	selectedQuoteHistory: GPriceStats;
+	confirmedPurchaseHistory: GPriceStats;
+};
+
+export type GBenchmarkSignal =
+	| 'ABOVE_HISTORICAL_RANGE'
+	| 'WITHIN_HISTORICAL_RANGE'
+	| 'BELOW_HISTORICAL_RANGE'
+	| 'INSUFFICIENT_EVIDENCE'
+	| string;
+
+export type GQuoteBenchmark = {
+	signal: GBenchmarkSignal;
+	reason?: string;
+	currentQuoteValue?: number | string | null;
+	comparableConfirmedPurchaseStats?: GPriceStats | null;
+	comparableQuoteStats?: GPriceStats | null;
+	combinedStats?: GPriceStats | null;
+	deltaAmount?: number | string | null;
+	deltaPercentageVsRange?: number | string | null;
+	sampleCount?: number;
+	supplierCount?: number;
+	sourceMaxEffectiveAt?: string | null;
+	calculatedAt?: string;
+	freshness?: { calculatedAt?: string; sourceMaxEffectiveAt?: string | null };
+	comparableKey?: string | null;
+	currencyCode?: string | null;
+	unitId?: string | null;
+	metricVersion: number;
+	evidenceCoverage?: { purchaseSamples?: number; quoteSamples?: number };
+};
+
+export type GSupplierPerformance = {
+	supplierCompanyId: string;
+	poCount: number;
+	confirmedPoCount: number;
+	commercialPurchaseValue?: number | string | null;
+	confirmationLatencySecondsMean?: number | string | null;
+	confirmationLatencySampleCount?: number;
+	confirmationRevisionCount?: number;
+	confirmationRevisionRate?: number | string | null;
+	cancellationCount?: number;
+	cancellationRate?: number | string | null;
+	cancellationRateFormulaVersion?: number;
+	cancellationRateDenominator?: string;
+	categoryCount?: number;
+	lastActivityAt?: string | null;
+	deliveryMetrics?: null;
+	calculatedAt: string;
+	metricVersion: number;
+};
+
+export type GCategoryIntelligence = {
+	sector: string;
+	quoteActivity: number;
+	purchaseActivity: number;
+	commercialPurchaseValue?: number | string | null;
+	supplierCount: number;
+	partnerDemandCount?: number;
+	itemCount?: number;
+	priceCoverage?: { quotedItems?: number; purchasedItems?: number };
+	demandActivity30d?: number;
+	demandActivity90d?: number;
+	recentActivityAt?: string | null;
+	calculatedAt: string;
+	metricVersion: number;
+};
+
+export type GDemandSignals = {
+	windowDays: number;
+	sector?: string | null;
+	semantics: string;
+	openDemand: Array<{
+		requirementId: string;
+		title?: string | null;
+		sector?: string | null;
+		status?: string | null;
+		lineCount?: number;
+		submittedAt?: string | null;
+	}>;
+	recentEngineeringDemand: Array<{
+		factId: string;
+		comparableKey?: string | null;
+		description?: string | null;
+		quantity?: number | string | null;
+		unitId?: string | null;
+		effectiveAt?: string | null;
+		partnerCompanyId?: string | null;
+		sourceEntityId?: string | null;
+	}>;
+	historicalCommercialActivity: Array<{
+		factId: string;
+		factKind?: string | null;
+		comparableKey?: string | null;
+		quantity?: number | string | null;
+		unitPrice?: number | string | null;
+		currencyCode?: string | null;
+		effectiveAt?: string | null;
+	}>;
+	calculatedAt: string;
+	sourceMaxEffectiveAt?: string | null;
+	metricVersion: number;
+};
+
+export type GDecisionSupport = {
+	benchmark: GQuoteBenchmark;
+	priceHistory?: GPriceHistory | null;
+	supplierPerformance?: GSupplierPerformance | null;
+	categorySignal?: GCategoryIntelligence | null;
+	evidenceCounts?: { purchaseSamples?: number; quoteSamples?: number } | null;
+	freshness?: { calculatedAt?: string; sourceMaxEffectiveAt?: string | null } | null;
+	actionExecution: false | boolean;
+	calculatedAt: string;
+	metricVersion: number;
+};
+
+export type GEvidenceItem = {
+	factId: string;
+	factKind: string;
+	sourceDomain: string;
+	sourceEntityType: string;
+	sourceEntityId: string;
+	effectiveAt: string;
+	unitPrice?: number | string | null;
+	currencyCode?: string | null;
+	unitId?: string | null;
+	sector?: string | null;
+	supplierCompanyId?: string | null;
+	comparableKey?: string | null;
+};
+
+export type GEvidencePage = {
+	total: number;
+	limit: number;
+	offset: number;
+	items: GEvidenceItem[];
+	calculatedAt: string;
+	metricVersion: number;
+};
+
+export type GBackfillResult = {
+	runId: string;
+	dryRun: boolean;
+	inserted?: number;
+	updated?: number;
+	skipped?: number;
+	wouldObserveQuotes?: number;
+	metricVersion: number;
+	verifyIngested?: boolean;
+};
+
+export type GPriceHistoryQuery = {
+	comparableKey?: string;
+	sector?: string;
+	supplierCompanyId?: string;
+	from?: string;
+	to?: string;
+	currencyCode?: string;
+	unitId?: string;
+};
+
+export type GDemandQuery = { sector?: string; windowDays?: number };
+export type GEvidenceQuery = {
+	comparableKey?: string;
+	factKind?: string;
+	limit?: number;
+	offset?: number;
+};
+
 /* —— Capability F — Engineering Workspace (internal) —— */
 
 export type InternalEngineeringRequestStatus =
@@ -1027,6 +1219,56 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 				`/api/v1/internal/engineering/boq-versions/${versionId}/handoff-to-d`,
 				{ method: 'POST', body, signal },
 			),
+
+		/* —— Capability G internal intelligence (Cursor3 /api/v1/internal/g-intelligence) —— */
+		internalGIntelligenceBackfill: (body: { dryRun?: boolean } = {}, signal?: AbortSignal) =>
+			request<GBackfillResult>('/api/v1/internal/g-intelligence/backfill', { method: 'POST', body, signal }),
+		internalGPriceHistory: (query: GPriceHistoryQuery = {}, signal?: AbortSignal) => {
+			const params = new URLSearchParams();
+			if (query.comparableKey) params.set('comparableKey', query.comparableKey);
+			if (query.sector) params.set('sector', query.sector);
+			if (query.supplierCompanyId) params.set('supplierCompanyId', query.supplierCompanyId);
+			if (query.from) params.set('from', query.from);
+			if (query.to) params.set('to', query.to);
+			if (query.currencyCode) params.set('currencyCode', query.currencyCode);
+			if (query.unitId) params.set('unitId', query.unitId);
+			const qs = params.toString();
+			return request<GPriceHistory>(`/api/v1/internal/g-intelligence/price-history${qs ? `?${qs}` : ''}`, { signal });
+		},
+		internalGQuoteBenchmark: (quoteLineId: string, signal?: AbortSignal) =>
+			request<GQuoteBenchmark>(`/api/v1/internal/g-intelligence/quotes/${quoteLineId}/benchmark`, { signal }),
+		internalGSupplierPerformance: (supplierCompanyId: string, signal?: AbortSignal) =>
+			request<GSupplierPerformance>(
+				`/api/v1/internal/g-intelligence/suppliers/${supplierCompanyId}/performance`,
+				{ signal },
+			),
+		internalGCategoryIntelligence: (sector: string, signal?: AbortSignal) =>
+			request<GCategoryIntelligence>(
+				`/api/v1/internal/g-intelligence/categories/${encodeURIComponent(sector)}`,
+				{ signal },
+			),
+		internalGDemandSignals: (query: GDemandQuery = {}, signal?: AbortSignal) => {
+			const params = new URLSearchParams();
+			if (query.sector) params.set('sector', query.sector);
+			if (query.windowDays != null) params.set('windowDays', String(query.windowDays));
+			const qs = params.toString();
+			return request<GDemandSignals>(`/api/v1/internal/g-intelligence/demand${qs ? `?${qs}` : ''}`, { signal });
+		},
+		internalGDecisionSupport: (quoteLineId: string, signal?: AbortSignal) =>
+			request<GDecisionSupport>(
+				`/api/v1/internal/g-intelligence/decision-support/quotes/${quoteLineId}`,
+				{ signal },
+			),
+		internalGEvidence: (query: GEvidenceQuery = {}, signal?: AbortSignal) => {
+			const params = new URLSearchParams();
+			if (query.comparableKey) params.set('comparableKey', query.comparableKey);
+			if (query.factKind) params.set('factKind', query.factKind);
+			if (query.limit != null) params.set('limit', String(query.limit));
+			if (query.offset != null) params.set('offset', String(query.offset));
+			const qs = params.toString();
+			return request<GEvidencePage>(`/api/v1/internal/g-intelligence/evidence${qs ? `?${qs}` : ''}`, { signal });
+		},
+
 		partnerCommercialOrder: (companyId: string, orderId: string, signal?: AbortSignal) =>
 			request<PartnerCommercialOrderDetailDto>(`/api/v1/partner/commercial/orders/${orderId}`, { companyId, signal }),
 	};

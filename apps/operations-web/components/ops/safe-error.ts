@@ -76,5 +76,33 @@ export function mapOpsError(failure: unknown, fallback: string): string {
   if (failure.code === 'G_INTELLIGENCE_BACKFILL_IN_PROGRESS') {
     return 'تحديث الأدلة جارٍ — أعد المحاولة بعد لحظات.';
   }
+  if (
+    failure.code === 'H_OPS_READ_FORBIDDEN' ||
+    failure.code === 'H_OPS_ASSIGN_FORBIDDEN' ||
+    failure.code === 'H_OPS_RETRY_FORBIDDEN' ||
+    failure.code === 'H_OPS_FORBIDDEN' ||
+    failure.code === 'H_OPS_JOB_FORBIDDEN' ||
+    failure.code === 'H_HEALTH_FORBIDDEN' ||
+    failure.code === 'H_CONFIG_FORBIDDEN' ||
+    failure.code === 'H_CYCLE_FORBIDDEN' ||
+    /H_OPS_.*FORBIDDEN|H_HEALTH_FORBIDDEN|H_CONFIG_FORBIDDEN|H_CYCLE_FORBIDDEN/.test(failure.message || '')
+  ) {
+    return 'غير مصرح بهذا الإجراء التشغيلي.';
+  }
+  if (failure.code === 'H_WORK_ITEM_NOT_FOUND' || failure.code === 'H_EXCEPTION_NOT_FOUND' || failure.code === 'H_CYCLE_NOT_FOUND' || failure.code === 'H_JOB_NOT_FOUND' || failure.code === 'H_NOTIFICATION_NOT_FOUND') {
+    return 'العنصر التشغيلي غير موجود.';
+  }
+  if (failure.code === 'H_EXCEPTION_NOT_RETRYABLE' || failure.code === 'H_EXCEPTION_MAX_ATTEMPTS' || failure.code === 'H_EXCEPTION_RETRY_TOO_SOON') {
+    return 'إعادة المحاولة غير متاحة الآن.';
+  }
+  if (failure.code === 'H_BLOCKED_REASON_REQUIRED' || failure.code === 'H_STATUS_INVALID') {
+    return 'تحقق من الحالة وسبب التعثر المطلوب.';
+  }
+  if (failure.code === 'H_CYCLE_WINDOW_INVALID' || failure.code === 'H_CONFIG_KEY_INVALID' || failure.code === 'H_CONFIG_VALUE_INVALID') {
+    return 'قيمة التشغيل غير صالحة.';
+  }
+  if (failure.code === 'H_JOB_RUNNING' || failure.code === 'H_JOB_MAX_ATTEMPTS' || failure.code === 'H_JOB_IDEMPOTENCY_REQUIRED') {
+    return 'المهمة غير قابلة للتشغيل في حالتها الحالية.';
+  }
   return fallback;
 }

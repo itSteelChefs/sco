@@ -235,6 +235,13 @@ export function OpsHome() {
       label: 'ذكاء المشتريات',
       hint: 'أسعار · مقارنة · موردون · فئات · أدلة — بلا تنبؤ',
     },
+    {
+      key: 'h-ops',
+      href: '/operations',
+      count: null,
+      label: 'العمليات',
+      hint: 'مركز · مهامي · متعثر · دورات · إشعارات · صحة',
+    },
   ];
 
   const numericPending = cards.some((card) => typeof card.count === 'number' && card.count > 0);

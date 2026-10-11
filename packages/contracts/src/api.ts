@@ -450,6 +450,114 @@ export type InternalProcurementRequirementListItem = {
 	updatedAt: string;
 };
 
+
+/* —— Capability F — Engineering Workspace (internal) —— */
+
+export type InternalEngineeringRequestStatus =
+	| 'SUBMITTED'
+	| 'ASSIGNED'
+	| 'IN_REVIEW'
+	| 'ACTION_REQUIRED'
+	| 'BOQ_IN_PROGRESS'
+	| 'PENDING_APPROVAL'
+	| 'APPROVED'
+	| 'CANCELLED'
+	| string;
+
+export type InternalEngineeringRequestListItem = {
+	id: string;
+	companyId: string;
+	title: string;
+	sector: string;
+	status: string;
+	assignedEngineerId?: string | null;
+	submittedAt?: string | null;
+	updatedAt: string;
+};
+
+export type InternalEngineeringBoqVersionSummary = {
+	id: string;
+	versionNumber: number;
+	status: string;
+	approvedAt?: string | null;
+	createdAt: string;
+};
+
+export type InternalEngineeringRequestDetail = {
+	id: string;
+	companyId: string;
+	title: string;
+	sector: string;
+	description?: string | null;
+	projectReference?: string | null;
+	requestType?: string | null;
+	status: string;
+	assignedEngineerId?: string | null;
+	actionRequiredMessage?: string | null;
+	partnerVisibleNotes?: string | null;
+	internalNotes?: string | null;
+	currentApprovedBoqVersionId?: string | null;
+	versions: InternalEngineeringBoqVersionSummary[];
+};
+
+export type InternalEngineeringBoqLine = {
+	id: string;
+	lineKey: string;
+	description: string;
+	specification?: string | null;
+	discipline?: string | null;
+	quantity: number;
+	unitId: string;
+	brandPreference?: string | null;
+	modelPreference?: string | null;
+	engineeringNotes?: string | null;
+	partnerVisibleNotes?: string | null;
+	sourceDocumentId?: string | null;
+	sourceReference?: string | null;
+	sortOrder: number;
+};
+
+export type InternalEngineeringBoqVersion = {
+	id: string;
+	requestId: string;
+	companyId: string;
+	versionNumber: number;
+	status: string;
+	supersedesVersionId?: string | null;
+	approvedBy?: string | null;
+	approvedAt?: string | null;
+	partnerVisibleNotes?: string | null;
+	internalNotes?: string | null;
+	lines: InternalEngineeringBoqLine[];
+	upsertedLineId?: string;
+};
+
+export type InternalEngineeringBoqLineInput = {
+	lineId?: string;
+	description: string;
+	specification?: string;
+	discipline?: string;
+	quantity: number;
+	unitId: string;
+	brandPreference?: string;
+	modelPreference?: string;
+	engineeringNotes?: string;
+	partnerVisibleNotes?: string;
+	sourceDocumentId?: string;
+	sourceReference?: string;
+	sortOrder?: number;
+};
+
+export type InternalEngineeringDHandoff = {
+	handoffId: string;
+	requestId: string;
+	companyId: string;
+	boqVersionId: string;
+	procurementRequirementId: string;
+	handedOffAt: string;
+	status: string;
+};
+
 export class ApiClientError extends Error {
 	constructor(
 		public readonly status: number,
@@ -710,6 +818,65 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 		/* —— Capability E Partner commercial read (Cursor3 signed routes) —— */
 		partnerCommercialOrders: (companyId: string, signal?: AbortSignal) =>
 			request<PartnerCommercialOrderSummaryDto[]>('/api/v1/partner/commercial/orders', { companyId, signal }),
+
+		/* —— Capability F internal engineering (Cursor3 /api/v1/internal/engineering) —— */
+		internalEngineeringRequests: (signal?: AbortSignal) =>
+			request<InternalEngineeringRequestListItem[]>('/api/v1/internal/engineering/requests', { signal }),
+		internalEngineeringRequestGet: (requestId: string, signal?: AbortSignal) =>
+			request<InternalEngineeringRequestDetail>(`/api/v1/internal/engineering/requests/${requestId}`, { signal }),
+		internalEngineeringAssign: (
+			requestId: string,
+			body: { engineerUserId: string },
+			signal?: AbortSignal,
+		) =>
+			request<InternalEngineeringRequestDetail>(`/api/v1/internal/engineering/requests/${requestId}/assign`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalEngineeringTransition: (
+			requestId: string,
+			body: { nextStatus: string; reason?: string },
+			signal?: AbortSignal,
+		) =>
+			request<InternalEngineeringRequestDetail>(`/api/v1/internal/engineering/requests/${requestId}/transition`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalEngineeringBoqVersionCreate: (requestId: string, signal?: AbortSignal) =>
+			request<InternalEngineeringBoqVersion>(`/api/v1/internal/engineering/requests/${requestId}/boq-versions`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalEngineeringBoqGet: (versionId: string, signal?: AbortSignal) =>
+			request<InternalEngineeringBoqVersion>(`/api/v1/internal/engineering/boq-versions/${versionId}`, { signal }),
+		internalEngineeringBoqLineUpsert: (
+			versionId: string,
+			body: InternalEngineeringBoqLineInput,
+			signal?: AbortSignal,
+		) =>
+			request<InternalEngineeringBoqVersion>(`/api/v1/internal/engineering/boq-versions/${versionId}/lines`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalEngineeringBoqApprove: (versionId: string, signal?: AbortSignal) =>
+			request<InternalEngineeringBoqVersion>(`/api/v1/internal/engineering/boq-versions/${versionId}/approve`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalEngineeringHandoffToD: (
+			versionId: string,
+			body: { deliveryLocation: string; idempotencyKey: string },
+			signal?: AbortSignal,
+		) =>
+			request<InternalEngineeringDHandoff>(
+				`/api/v1/internal/engineering/boq-versions/${versionId}/handoff-to-d`,
+				{ method: 'POST', body, signal },
+			),
 		partnerCommercialOrder: (companyId: string, orderId: string, signal?: AbortSignal) =>
 			request<PartnerCommercialOrderDetailDto>(`/api/v1/partner/commercial/orders/${orderId}`, { companyId, signal }),
 	};

@@ -17,6 +17,8 @@ type Counts = {
   verifyApproval: number;
   /** From signed D procurement requirements only — never from unsigned commercial list APIs. */
   selectionsReady: number | null;
+  engineeringNew: number | null;
+  engineeringApproval: number | null;
 };
 
 type QueueCard = {
@@ -46,6 +48,8 @@ export function OpsHome() {
         verifyInReview: 0,
         verifyApproval: 0,
         selectionsReady: null,
+        engineeringNew: null,
+        engineeringApproval: null,
       };
       const warnings: string[] = [];
       try {
@@ -87,6 +91,15 @@ export function OpsHome() {
       } catch {
         warnings.push('التجاري/D');
         next.selectionsReady = null;
+      }
+      try {
+        const eng = await api.internalEngineeringRequests();
+        next.engineeringNew = eng.filter((row) => row.status === 'SUBMITTED').length;
+        next.engineeringApproval = eng.filter((row) => row.status === 'PENDING_APPROVAL').length;
+      } catch {
+        warnings.push('الهندسة');
+        next.engineeringNew = null;
+        next.engineeringApproval = null;
       }
       if (cancelled) return;
       setCounts(next);
@@ -193,6 +206,27 @@ export function OpsHome() {
       count: null,
       label: 'جاهزية التنفيذ',
       hint: 'من fulfillmentReady في أمر إعادة البيع',
+    },
+    {
+      key: 'f-new',
+      href: '/engineering?status=new',
+      count: counts.engineeringNew,
+      label: 'طلبات هندسية جديدة',
+      hint: 'من طابور الهندسة الموقّع',
+    },
+    {
+      key: 'f-approval',
+      href: '/engineering?status=approval',
+      count: counts.engineeringApproval,
+      label: 'جداول كميات بانتظار الاعتماد',
+      hint: 'مسار الهندسة الداخلي',
+    },
+    {
+      key: 'f-hub',
+      href: '/engineering',
+      count: null,
+      label: 'مساحة الدراسات الهندسية',
+      hint: 'إسناد · BOQ · اعتماد · تسليم D',
     },
   ];
 

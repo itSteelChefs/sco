@@ -232,3 +232,33 @@ export function engineeringDocClassAr(value: string | null | undefined): string 
       return value || '—';
   }
 }
+
+export function gBenchmarkSignalAr(signal: string): string {
+  switch (signal) {
+    case 'ABOVE_HISTORICAL_RANGE':
+      return 'أعلى من النطاق التاريخي';
+    case 'WITHIN_HISTORICAL_RANGE':
+      return 'ضمن النطاق التاريخي';
+    case 'BELOW_HISTORICAL_RANGE':
+      return 'أقل من النطاق التاريخي';
+    case 'INSUFFICIENT_EVIDENCE':
+      return 'بيانات غير كافية';
+    default:
+      return signal;
+  }
+}
+
+export function gFactKindAr(kind: string): string {
+  switch (kind) {
+    case 'QUOTE_OBSERVED':
+      return 'أسعار العروض';
+    case 'QUOTE_SELECTED':
+      return 'الأسعار المختارة';
+    case 'SUPPLIER_CONFIRMED':
+      return 'أسعار الشراء المؤكدة';
+    case 'ENGINEERING_DEMAND':
+      return 'طلب هندسي';
+    default:
+      return kind;
+  }
+}

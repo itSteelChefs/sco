@@ -60,5 +60,21 @@ export function mapOpsError(failure: unknown, fallback: string): string {
   if (failure.code === 'ENGINEERING_BOQ_EMPTY') {
     return 'لا يمكن اعتماد جداول كميات بلا بنود.';
   }
+  if (
+    failure.code === 'G_INTELLIGENCE_READ_FORBIDDEN' ||
+    failure.code === 'G_INTELLIGENCE_REFRESH_FORBIDDEN' ||
+    /G_INTELLIGENCE_.*FORBIDDEN/.test(failure.message || '')
+  ) {
+    return 'غير مصرح بعرض أو تحديث ذكاء المشتريات.';
+  }
+  if (failure.code === 'G_QUOTE_LINE_NOT_FOUND') {
+    return 'سطر العرض غير موجود.';
+  }
+  if (failure.code === 'G_SUPPLIER_REQUIRED' || failure.code === 'G_SECTOR_REQUIRED') {
+    return 'المعرّف المطلوب ناقص (مورّد أو فئة).';
+  }
+  if (failure.code === 'G_INTELLIGENCE_BACKFILL_IN_PROGRESS') {
+    return 'تحديث الأدلة جارٍ — أعد المحاولة بعد لحظات.';
+  }
   return fallback;
 }

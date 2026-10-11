@@ -228,6 +228,13 @@ export function OpsHome() {
       label: 'مساحة الدراسات الهندسية',
       hint: 'إسناد · BOQ · اعتماد · تسليم D',
     },
+    {
+      key: 'g-intel',
+      href: '/intelligence',
+      count: null,
+      label: 'ذكاء المشتريات',
+      hint: 'أسعار · مقارنة · موردون · فئات · أدلة — بلا تنبؤ',
+    },
   ];
 
   const numericPending = cards.some((card) => typeof card.count === 'number' && card.count > 0);

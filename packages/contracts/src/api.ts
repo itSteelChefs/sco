@@ -373,6 +373,38 @@ export type InternalResaleLine = {
 	lineGrossMargin?: number | null;
 };
 
+
+/** Partner-safe commercial order (Capability E) — never includes purchase cost/margin/supplier canonical ID. */
+export type PartnerCommercialOrderSummaryDto = {
+	id: string;
+	orderReference: string;
+	status: string;
+	currencyCode: string;
+	saleTotal: number | string;
+	paymentTerms?: string | null;
+	fulfillmentReady: boolean;
+	supplierAliasLabel?: string | null;
+	confirmedAt?: string | null;
+	createdAt: string;
+};
+
+export type PartnerCommercialOrderLineDto = {
+	id: string;
+	description?: string | null;
+	specification?: string | null;
+	quantity: number | string;
+	saleUnitPrice: number | string;
+	saleLineAmount: number | string;
+};
+
+export type PartnerCommercialOrderDetailDto = PartnerCommercialOrderSummaryDto & {
+	deliveryTerms?: string | null;
+	commercialNotes?: string | null;
+	saleSubtotal?: number | string;
+	taxAmount?: number | string;
+	lines: PartnerCommercialOrderLineDto[];
+};
+
 /** UI consolidation row derived from supplier order lines (same-supplier only). */
 export type InternalConsolidationRow = {
 	partnerCompanyId: string;
@@ -674,5 +706,11 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 				body: {},
 				signal,
 			}),
+
+		/* —— Capability E Partner commercial read (Cursor3 signed routes) —— */
+		partnerCommercialOrders: (companyId: string, signal?: AbortSignal) =>
+			request<PartnerCommercialOrderSummaryDto[]>('/api/v1/partner/commercial/orders', { companyId, signal }),
+		partnerCommercialOrder: (companyId: string, orderId: string, signal?: AbortSignal) =>
+			request<PartnerCommercialOrderDetailDto>(`/api/v1/partner/commercial/orders/${orderId}`, { companyId, signal }),
 	};
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isPartnerCommercialOrdersContractReady } from '../../lib/commercial-orders-api';
+import { isPartnerEngineeringContractReady } from '../../lib/engineering-api';
 import styles from '../readiness/readiness.module.css';
 
 const BASE_NAV = [
@@ -13,12 +14,18 @@ const BASE_NAV = [
   { href: '/portal/verify', label: 'تأكّد' },
 ] as const;
 
-/** E nav appears only when Cursor3 partner commercial contracts are on the client. */
+/** E nav appears only when partner commercial contracts are on the client. */
 const E_NAV = { href: '/portal/orders', label: 'مشترياتي' } as const;
+/** F nav appears only when partner engineering contracts are on the client. */
+const F_NAV = { href: '/portal/engineering', label: 'الدراسات الهندسية' } as const;
 
 export function PortalChrome() {
   const pathname = usePathname() ?? '';
-  const nav = isPartnerCommercialOrdersContractReady() ? [...BASE_NAV, E_NAV] : [...BASE_NAV];
+  const nav = [
+    ...BASE_NAV,
+    ...(isPartnerCommercialOrdersContractReady() ? [E_NAV] : []),
+    ...(isPartnerEngineeringContractReady() ? [F_NAV] : []),
+  ];
 
   return (
     <div className={styles.topBar}>

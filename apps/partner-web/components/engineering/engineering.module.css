@@ -1,0 +1,266 @@
+.page {
+  min-height: 100vh;
+  background: var(--sco-bg, #eef1f4);
+  color: var(--sco-ink, #0c1b24);
+}
+
+.shell {
+  width: min(100%, 56rem);
+  margin-inline: auto;
+  padding: clamp(1.25rem, 4vw, 2.25rem) clamp(1rem, 3vw, 2rem) 3rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.intro h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+}
+
+.intro p {
+  margin: 0;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  background: var(--sco-bg-elevated, #f7f9fb);
+  border: 1px solid var(--sco-line, #c9d3db);
+}
+
+.panel h2,
+.panel h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.panelLead,
+.hint {
+  margin: 0;
+  color: var(--sco-muted, #5a6b76);
+  font-size: 0.92rem;
+}
+
+.hint {
+  font-size: 0.82rem;
+}
+
+.note {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-inline-start: 3px solid var(--sco-accent, #16485a);
+  background: var(--sco-accent-soft, rgba(22, 72, 90, 0.08));
+  font-size: 0.92rem;
+}
+
+.fieldError {
+  margin: 0;
+  color: #8a1f1f;
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--sco-line, #c9d3db);
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.badgeAccent {
+  border-color: var(--sco-accent, #16485a);
+  color: var(--sco-accent, #16485a);
+  background: var(--sco-accent-soft, rgba(22, 72, 90, 0.08));
+}
+
+.badgeWarn {
+  border-color: #8a5a1f;
+  color: #8a5a1f;
+  background: rgba(138, 90, 31, 0.08);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  align-items: center;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.listItem {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem 0;
+  border-block-start: 1px solid var(--sco-line, #c9d3db);
+}
+
+.listItem:last-child {
+  border-block-end: 1px solid var(--sco-line, #c9d3db);
+}
+
+.meta {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.92rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.field label {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.field input,
+.field select,
+.field textarea {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  border: 1px solid var(--sco-line, #c9d3db);
+  background: #fff;
+  border-radius: 0.2rem;
+}
+
+.field textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.button,
+.buttonGhost,
+.linkButton {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.95rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.button,
+.linkButton {
+  background: var(--sco-accent, #16485a);
+  color: #fff;
+  border: 1px solid var(--sco-accent, #16485a);
+}
+
+.buttonGhost {
+  background: transparent;
+  border: 1px solid var(--sco-line, #c9d3db);
+  color: var(--sco-ink, #0c1b24);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.summaryGrid dt {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.summaryGrid dd {
+  margin: 0 0 0.45rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.boqTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.boqTable th,
+.boqTable td {
+  text-align: start;
+  padding: 0.55rem 0.4rem;
+  border-block-end: 1px solid var(--sco-line, #c9d3db);
+  vertical-align: top;
+}
+
+.boqTable th {
+  font-size: 0.82rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.boqCards {
+  display: none;
+  gap: 0.75rem;
+}
+
+.boqCard {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem 0;
+  border-block-start: 1px solid var(--sco-line, #c9d3db);
+}
+
+.dialog {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--sco-line, #c9d3db);
+  background: #fff;
+}
+
+.mixed {
+  unicode-bidi: plaintext;
+}
+
+@media (max-width: 640px) {
+  .boqTable {
+    display: none;
+  }
+
+  .boqCards {
+    display: grid;
+  }
+
+  .actions .button,
+  .actions .buttonGhost,
+  .actions .linkButton {
+    width: 100%;
+  }
+}

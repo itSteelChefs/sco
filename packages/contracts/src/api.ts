@@ -66,6 +66,89 @@ export type PartnerQualification = {
 	updatedAt: string;
 };
 
+/** Internal qualification queue row from GET /api/v1/internal/network/qualifications */
+export type InternalQualificationListItem = {
+	id: string;
+	legalName: string;
+	contactEmail: string;
+	status: string;
+	createdAt: string;
+};
+
+export type InternalQualificationDecisionStatus = 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'REJECTED';
+
+export type InternalPartnershipReadiness = {
+	partnershipId: string;
+	companyId: string;
+	companyDisplayName: string;
+	partnershipType: string;
+	partnershipStatus: string;
+	qualificationStatus: string | null;
+	qualificationReady: boolean;
+	requiredAgreementsSatisfied: boolean;
+	companyStatus: string;
+	companyActive: boolean;
+	activePortalMembershipReady: boolean;
+	partnerPortalReadReady: boolean;
+	nextInternalAction: 'APPROVE' | 'ACTIVATE' | 'NONE';
+	actionReady: boolean;
+	blockers: string[];
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type InternalDocumentListItem = {
+	id: string;
+	company_id: string;
+	filename: string;
+	detected_mime_type: string;
+	byte_size: number;
+	status: string;
+	document_category: string | null;
+	retention_class: string | null;
+	linked_entity_type: string | null;
+	linked_entity_id: string | null;
+	created_at: string;
+	updated_at: string;
+};
+
+export type InternalVerifyQueueItem = {
+	request_id: string;
+	company_id: string;
+	revision_id: string | null;
+	run_id: string | null;
+	result_id: string | null;
+	request_status: string;
+	run_status: string | null;
+	result_status: string | null;
+	classification: string | null;
+	updated_at: string;
+};
+
+export type InternalVerifyAnalysisInput = {
+	offerValue?: unknown;
+	verifiedReferenceScope?: unknown;
+	gap?: unknown;
+	confidence?: unknown;
+	proposedAction: string;
+	exclusions?: unknown;
+	supersedesResultId?: string;
+};
+
+export type PartnerDocumentMetadata = {
+	documentId: string;
+	filename: string;
+	contentType: string;
+	byteSize: number;
+	status: string;
+	category: string | null;
+	retentionClass: string | null;
+	linkedEntityType: string | null;
+	linkedEntityId: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
 export type PartnerDocumentCategory = 'QUALIFICATION_SUPPORT' | 'AGREEMENT_ARTIFACT' | 'VERIFY_QUOTE' | 'GENERAL';
 
 export type PartnerDocumentUploadInput = {
@@ -88,19 +171,6 @@ export type PartnerDocumentUploadResult = {
 	linkedEntityType: string | null;
 	linkedEntityId: string | null;
 	createdAt: string;
-};
-export type PartnerDocumentMetadata = {
-	documentId: string;
-	filename: string;
-	contentType: string;
-	byteSize: number;
-	status: string;
-	category: string | null;
-	retentionClass: string | null;
-	linkedEntityType: string | null;
-	linkedEntityId: string | null;
-	createdAt: string;
-	updatedAt: string;
 };
 export type PartnerDocumentPage = Page<PartnerDocumentMetadata>;
 export type PartnerVerifyOperationalResult = {
@@ -155,6 +225,11 @@ export type PartnerVerifyResult = {
 	classification: string;
 	finalizedAt: string;
 	coverage: PartnerVerifyCoverageEntry[];
+	offerValue: unknown;
+	verifiedReferenceScope: unknown;
+	gap: unknown;
+	confidence: unknown;
+	proposedAction: string;
 };
 
 export class ApiClientError extends Error {
@@ -215,6 +290,22 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 			request<PartnerDocumentUploadResult>('/api/v1/partner/documents/upload', { method: 'POST', companyId, body, signal }),
 		partnerDocuments: (companyId: string, page = 1, pageSize = 20, signal?: AbortSignal) =>
 			request<PartnerDocumentPage>(`/api/v1/partner/documents?page=${page}&pageSize=${pageSize}`, { companyId, signal }),
+		partnerDocumentDownload: (companyId: string, documentId: string, signal?: AbortSignal) =>
+			fetchImpl(`${baseUrl}/api/v1/partner/documents/${documentId}/download`, {
+				method: 'GET',
+				credentials: 'include',
+				headers: {
+					accept: '*/*',
+					'x-sco-company-id': companyId,
+				},
+				signal,
+			}).then(async (response) => {
+				if (!response.ok) {
+					const payload = await response.json().catch(() => ({})) as Partial<ErrorEnvelope>;
+					throw new ApiClientError(response.status, payload.error?.code ?? 'REQUEST_FAILED', response.headers.get('x-correlation-id') ?? undefined);
+				}
+				return response;
+			}),
 		partnerVerifyCreate: (companyId: string, signal?: AbortSignal) =>
 			request<PartnerVerifyDraft>('/api/v1/partner/verify/requests', { method: 'POST', companyId, body: { productMode: 'QUOTE_CHECK' }, signal }),
 		partnerVerifyAttachQuote: (companyId: string, requestId: string, body: PartnerVerifyAttachQuoteInput, signal?: AbortSignal) =>
@@ -224,5 +315,77 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 		partnerVerifyGetResult: (companyId: string, requestId: string, signal?: AbortSignal) =>
 			request<PartnerVerifyResult>(`/api/v1/partner/verify/requests/${requestId}/result`, { companyId, signal }),
 		companies: (companyId: string, page = 1, pageSize = 25) => request<Page<{ id: string; name: string; type: string; status: string }>>(`/api/v1/internal/companies?page=${page}&pageSize=${pageSize}`, { companyId }),
+
+		/* —— SCO Internal Operations (ScoInternalGuard; no company header) —— */
+		internalQualifications: (signal?: AbortSignal) =>
+			request<InternalQualificationListItem[]>('/api/v1/internal/network/qualifications', { signal }),
+		internalQualificationDecide: (
+			id: string,
+			body: { status: InternalQualificationDecisionStatus; reason: string },
+			signal?: AbortSignal,
+		) =>
+			request<{ id: string; status?: string; decision_reason?: string; partner_action_required_reason?: string | null }>(
+				`/api/v1/internal/network/qualifications/${id}/decision`,
+				{ method: 'PATCH', body, signal },
+			),
+		internalPartnerships: (signal?: AbortSignal) =>
+			request<InternalPartnershipReadiness[]>('/api/v1/internal/network/partnerships', { signal }),
+		internalPartnershipReadiness: (partnershipId: string, signal?: AbortSignal) =>
+			request<InternalPartnershipReadiness>(`/api/v1/internal/network/partnerships/${partnershipId}/readiness`, { signal }),
+		internalPartnershipApprove: (partnershipId: string, reason: string, signal?: AbortSignal) =>
+			request<unknown>(`/api/v1/internal/network/partnerships/${partnershipId}/approve`, { method: 'POST', body: { reason }, signal }),
+		internalPartnershipActivate: (partnershipId: string, signal?: AbortSignal) =>
+			request<unknown>(`/api/v1/internal/network/partnerships/${partnershipId}/activate`, { method: 'POST', body: {}, signal }),
+		internalAgreementPolicyPublish: (policyId: string, signal?: AbortSignal) =>
+			request<unknown>(`/api/v1/internal/network/agreement-policies/${policyId}/publish`, { method: 'POST', body: {}, signal }),
+		internalDocuments: (page = 1, pageSize = 20, signal?: AbortSignal) =>
+			request<{ items: InternalDocumentListItem[]; page: number; pageSize: number }>(
+				`/api/v1/internal/documents?page=${page}&pageSize=${pageSize}`,
+				{ signal },
+			),
+		internalVerifyQueue: (page = 1, pageSize = 20, status?: string, signal?: AbortSignal) =>
+			request<{ items: InternalVerifyQueueItem[]; page: number; pageSize: number }>(
+				`/api/v1/internal/verify/queue?page=${page}&pageSize=${pageSize}${status ? `&status=${encodeURIComponent(status)}` : ''}`,
+				{ signal },
+			),
+		internalVerifyStartRun: (
+			revisionId: string,
+			body: { methodologyVersion: string; evidenceFingerprint: string; retryOfRunId?: string },
+			signal?: AbortSignal,
+		) =>
+			request<{ runId: string; status: string }>(`/api/v1/internal/verify/revisions/${revisionId}/runs`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalVerifyLineResult: (
+			runId: string,
+			lineId: string,
+			body: { outcome: 'VERIFIED' | 'INSUFFICIENT_EVIDENCE' | 'EXCLUDED'; reason?: string },
+			signal?: AbortSignal,
+		) =>
+			request<{ resultId: string }>(`/api/v1/internal/verify/runs/${runId}/lines/${lineId}/result`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalVerifyCompleteRun: (runId: string, signal?: AbortSignal) =>
+			request<{ runId: string; status: string }>(`/api/v1/internal/verify/runs/${runId}/complete`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalVerifyPrepareAnalysis: (runId: string, body: InternalVerifyAnalysisInput, signal?: AbortSignal) =>
+			request<{ resultId: string; status: string }>(`/api/v1/internal/verify/runs/${runId}/analysis`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalVerifyApproveResult: (resultId: string, signal?: AbortSignal) =>
+			request<{ resultId: string; status: string }>(`/api/v1/internal/verify/results/${resultId}/approve`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
 	};
 }

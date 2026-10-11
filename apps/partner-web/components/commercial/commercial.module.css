@@ -1,0 +1,238 @@
+.page {
+  min-height: 100vh;
+  background: var(--sco-bg, #eef1f4);
+  color: var(--sco-ink, #0c1b24);
+}
+
+.shell {
+  width: min(100%, 56rem);
+  margin-inline: auto;
+  padding: clamp(1.25rem, 4vw, 2.25rem) clamp(1rem, 3vw, 2rem) 3rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.intro h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+}
+
+.intro p {
+  margin: 0;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  background: var(--sco-bg-elevated, #f7f9fb);
+  border: 1px solid var(--sco-line, #c9d3db);
+}
+
+.panel h2,
+.panel h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.panelLead {
+  margin: 0;
+  color: var(--sco-muted, #5a6b76);
+  font-size: 0.95rem;
+}
+
+.note {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-inline-start: 3px solid var(--sco-accent, #16485a);
+  background: var(--sco-accent-soft, rgba(22, 72, 90, 0.08));
+  font-size: 0.92rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.fieldError {
+  margin: 0;
+  color: #8a1f1f;
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--sco-line, #c9d3db);
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.badgeAccent {
+  border-color: var(--sco-accent, #16485a);
+  color: var(--sco-accent, #16485a);
+  background: var(--sco-accent-soft, rgba(22, 72, 90, 0.08));
+}
+
+.orderList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.orderCard {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 0;
+  border-block-start: 1px solid var(--sco-line, #c9d3db);
+}
+
+.orderCard:last-child {
+  border-block-end: 1px solid var(--sco-line, #c9d3db);
+}
+
+.orderHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  align-items: center;
+}
+
+.orderMeta {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.92rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.totalStrong {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--sco-ink, #0c1b24);
+}
+
+.linkButton {
+  min-height: 2.4rem;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 0.2rem;
+  background: var(--sco-accent, #16485a);
+  color: #fff;
+  border: 1px solid var(--sco-accent, #16485a);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+}
+
+.buttonGhost {
+  min-height: 2.4rem;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 0.2rem;
+  background: transparent;
+  border: 1px solid var(--sco-line, #c9d3db);
+  color: var(--sco-ink, #0c1b24);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.button {
+  min-height: 2.4rem;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 0.2rem;
+  background: var(--sco-accent, #16485a);
+  color: #fff;
+  border: 1px solid var(--sco-accent, #16485a);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.summaryGrid dt {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.summaryGrid dd {
+  margin: 0 0 0.45rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.lineTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.lineTable th,
+.lineTable td {
+  text-align: start;
+  padding: 0.55rem 0.4rem;
+  border-block-end: 1px solid var(--sco-line, #c9d3db);
+  vertical-align: top;
+}
+
+.lineTable th {
+  font-size: 0.82rem;
+  color: var(--sco-muted, #5a6b76);
+}
+
+.lineCards {
+  display: none;
+  gap: 0.75rem;
+}
+
+.lineCard {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0;
+  border-block-start: 1px solid var(--sco-line, #c9d3db);
+}
+
+@media (max-width: 640px) {
+  .lineTable {
+    display: none;
+  }
+
+  .lineCards {
+    display: grid;
+  }
+
+  .orderHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .linkButton,
+  .button,
+  .buttonGhost {
+    width: 100%;
+    justify-content: center;
+  }
+}

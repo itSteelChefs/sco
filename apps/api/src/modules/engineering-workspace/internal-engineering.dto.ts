@@ -6,8 +6,8 @@ import {
   IsString,
   IsUUID,
   MaxLength,
-  Min,
   MinLength,
+  Matches,
 } from 'class-validator';
 
 export class InternalAssignDto {
@@ -44,10 +44,9 @@ export class InternalBoqLineDto {
   @IsIn(['HVAC', 'ELECTRICAL', 'PLUMBING', 'MULTI', 'OTHER'])
   discipline?: string;
 
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0.0001)
-  quantity!: number;
+  @IsString()
+  @Matches(/^\d{1,14}(?:\.\d{1,4})?$/)
+  quantity!: string;
 
   @IsUUID()
   unitId!: string;

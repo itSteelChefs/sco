@@ -20,6 +20,7 @@ let unitId: string;
 let memberA: string;
 let memberB: string;
 let scoActor: string;
+let scoActor2: string;
 let engineer: string;
 
 async function grant(userId: string, companyId: string, code: string) {
@@ -128,7 +129,7 @@ beforeAll(async () => {
 
   memberA = await createUser(
     partnerA,
-    ['engineering.request.write', 'engineering.request.read', 'partner.portal.read', 'partner.agreement.accept'],
+    ['engineering.request.write', 'engineering.request.read', 'partner.portal.read', 'partner.agreement.accept', 'procurement.request.read'],
     true,
   );
   memberB = await createUser(
@@ -137,6 +138,13 @@ beforeAll(async () => {
     true,
   );
   scoActor = await createUser(scoCompany, [
+    'sco.internal.manage',
+    'engineering.request.review',
+    'engineering.request.assign',
+    'engineering.boq.edit',
+    'engineering.boq.approve',
+  ]);
+  scoActor2 = await createUser(scoCompany, [
     'sco.internal.manage',
     'engineering.request.review',
     'engineering.request.assign',
@@ -164,6 +172,19 @@ describe('F engineering workspace', () => {
     const cookieA = await login(memberA);
     const cookieB = await login(memberB);
     const scoCookie = await login(scoActor);
+
+    const idempotentDraft = await app.inject({
+      method: 'POST', url: '/api/v1/partner/engineering/requests',
+      headers: { cookie: cookieA, 'x-sco-company-id': partnerA },
+      payload: { title: 'Idempotency probe', sector: 'HVAC', idempotencyKey: 'request-key' },
+    });
+    expect(idempotentDraft.statusCode).toBe(201);
+    const requestCollision = await app.inject({
+      method: 'POST', url: '/api/v1/partner/engineering/requests',
+      headers: { cookie: cookieA, 'x-sco-company-id': partnerA },
+      payload: { title: 'Different request', sector: 'HVAC', idempotencyKey: 'request-key' },
+    });
+    expect(requestCollision.statusCode).toBe(409);
 
     // F-R01/R02 create + draft save
     const created = JSON.parse(
@@ -334,7 +355,7 @@ describe('F engineering workspace', () => {
             description: 'AHU-01',
             specification: '50 TR',
             discipline: 'HVAC',
-            quantity: 2.5,
+            quantity: '2.5000',
             unitId,
             brandPreference: 'Carrier',
             sourceDocumentId: docId,
@@ -353,9 +374,18 @@ describe('F engineering workspace', () => {
       method: 'POST',
       url: `/api/v1/internal/engineering/boq-versions/${boq.id}/lines`,
       headers: { cookie: scoCookie },
-      payload: { description: 'bad', quantity: 0, unitId },
+      payload: { description: 'bad', quantity: '0', unitId },
     });
     expect(badQty.statusCode).toBe(400);
+
+    // F-D04: an internal editor cannot cite a foreign or unlinked document as BOQ source evidence.
+    const foreignSource = await app.inject({
+      method: 'POST',
+      url: `/api/v1/internal/engineering/boq-versions/${boq.id}/lines`,
+      headers: { cookie: scoCookie },
+      payload: { description: 'foreign evidence', quantity: '1', unitId, sourceDocumentId: foreignDoc },
+    });
+    expect(foreignSource.statusCode).toBe(400);
 
     // F-RES03 unapproved hidden as approvedResult null
     const beforeApprove = JSON.parse(
@@ -387,7 +417,7 @@ describe('F engineering workspace', () => {
       method: 'POST',
       url: `/api/v1/internal/engineering/boq-versions/${boq.id}/lines`,
       headers: { cookie: scoCookie },
-      payload: { description: 'should fail', quantity: 1, unitId },
+      payload: { description: 'should fail', quantity: '1', unitId },
     });
     expect(mutateApproved.statusCode).toBe(400);
 
@@ -455,6 +485,24 @@ describe('F engineering workspace', () => {
     );
     expect(handoffDup.handoffId).toBe(handoff.handoffId);
 
+    // F-H04: a replay key is bound to actor, approved version, and handoff payload.
+    const conflictingPayload = await app.inject({
+      method: 'POST',
+      url: `/api/v1/internal/engineering/boq-versions/${boq.id}/handoff-to-d`,
+      headers: { cookie: scoCookie },
+      payload: { deliveryLocation: 'Different location', idempotencyKey: 'handoff-v1' },
+    });
+    expect(conflictingPayload.statusCode).toBe(409);
+
+    const scoCookie2 = await login(scoActor2);
+    const conflictingActor = await app.inject({
+      method: 'POST',
+      url: `/api/v1/internal/engineering/boq-versions/${boq.id}/handoff-to-d`,
+      headers: { cookie: scoCookie2 },
+      payload: { deliveryLocation: 'Riyadh Warehouse', idempotencyKey: 'handoff-v1' },
+    });
+    expect(conflictingActor.statusCode).toBe(409);
+
     const dLines = await owner.query(
       `SELECT description, quantity, unit_id, brand_preference FROM procurement_requirement_lines WHERE requirement_id=$1`,
       [handoff.procurementRequirementId],
@@ -463,6 +511,15 @@ describe('F engineering workspace', () => {
     expect(dLines.rows[0].description).toBe('AHU-01');
     expect(Number(dLines.rows[0].quantity)).toBe(2.5);
     expect(dLines.rows[0].brand_preference).toBe('Carrier');
+    const partnerDView = JSON.parse(
+      (await app.inject({
+        method: 'GET',
+        url: `/api/v1/partner/procurement/requirements/${handoff.procurementRequirementId}`,
+        headers: { cookie: cookieA, 'x-sco-company-id': partnerA },
+      })).body,
+    );
+    expect(JSON.stringify(partnerDView)).not.toContain('internal sizing note');
+    expect(partnerDView.lines[0].technicalNotes).toBe('Approved AHU');
 
     // F-H02 unapproved blocked — create v2 draft then try handoff before approve
     const boq2 = JSON.parse(
@@ -493,7 +550,7 @@ describe('F engineering workspace', () => {
       payload: {
         lineId: boq2.lines[0].id,
         description: 'AHU-01 revised',
-        quantity: 3,
+        quantity: '3.0000',
         unitId,
         specification: '60 TR',
       },
@@ -524,16 +581,24 @@ describe('F engineering workspace', () => {
     expect(Number(dLinesAfter.rows[0].quantity)).toBe(2.5);
 
     // New handoff for v2 creates separate D requirement
-    const handoff2 = JSON.parse(
-      (
-        await app.inject({
+    const [handoff2Response, handoff2ReplayResponse] = await Promise.all([
+      app.inject({
           method: 'POST',
           url: `/api/v1/internal/engineering/boq-versions/${boq2.id}/handoff-to-d`,
           headers: { cookie: scoCookie },
           payload: { deliveryLocation: 'Riyadh Warehouse', idempotencyKey: 'handoff-v2' },
-        })
-      ).body,
-    );
+        }),
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/internal/engineering/boq-versions/${boq2.id}/handoff-to-d`,
+        headers: { cookie: scoCookie },
+        payload: { deliveryLocation: 'Riyadh Warehouse', idempotencyKey: 'handoff-v2' },
+      }),
+    ]);
+    expect(handoff2Response.statusCode).toBe(201);
+    expect(handoff2ReplayResponse.statusCode).toBe(201);
+    const handoff2 = JSON.parse(handoff2Response.body);
+    expect(JSON.parse(handoff2ReplayResponse.body).handoffId).toBe(handoff2.handoffId);
     expect(handoff2.procurementRequirementId).not.toBe(handoff.procurementRequirementId);
 
     // F-H07 cross-tenant handoff blocked (partner cannot call)

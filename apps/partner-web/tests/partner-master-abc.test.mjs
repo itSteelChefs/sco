@@ -56,18 +56,23 @@ test('P-B agreements page + confirm accept + reacceptance', async () => {
   assert.match(panel, /acceptPartnerAgreement/);
 });
 
-test('P-D Document Center upload live; server list waiting', async () => {
+test('P-D Document Center upload + server list + secure download', async () => {
   const page = await read('../app/portal/documents/page.tsx');
   const panel = await read('../components/readiness/documents-panel.tsx');
+  const api = await read('../lib/readiness-api.ts');
   assert.match(page, /DocumentsPanel/);
   assert.match(panel, /documentUpload/);
-  assert.match(panel, /documents-server-list-waiting/);
-  assert.match(panel, /بانتظار/);
+  assert.match(panel, /documentList/);
+  assert.match(panel, /documentDownload/);
+  assert.match(panel, /documents-server-list-live/);
+  assert.match(api, /documentList/);
+  assert.match(api, /documentDownload/);
   assert.doesNotMatch(panel, /fakeDocument|fabricat/i);
-  assert.doesNotMatch(panel, /download\(|storageKey|s3:\/\//);
+  assert.doesNotMatch(panel, /storageKey|s3:\/\//);
+  assert.doesNotMatch(panel, /documents-server-list-waiting|بانتظار واجهة الخلفية/);
 });
 
-test('P-V verify getResult + coverage; no invented rich fields', async () => {
+test('P-V verify getResult + coverage + operational fields from backend', async () => {
   const page = await read('../app/portal/verify/page.tsx');
   const panel = await read('../components/readiness/verify-panel.tsx');
   const contracts = await read('../../../packages/contracts/src/api.ts');
@@ -78,9 +83,13 @@ test('P-V verify getResult + coverage; no invented rich fields', async () => {
   assert.match(panel, /coverage/);
   assert.match(panel, /lineCoveragePercent/);
   assert.match(panel, /verifiedLineCount/);
+  assert.match(panel, /verify-operational-fields/);
+  assert.match(panel, /result\.offerValue/);
+  assert.match(panel, /result\.proposedAction/);
   assert.match(contracts, /partnerVerifyGetResult/);
+  assert.match(contracts, /proposedAction/);
   assert.match(api, /verifyGetResult/);
-  assert.doesNotMatch(panel, /confidence|proposedAction|gapAmount|offerValue/);
+  assert.doesNotMatch(panel, /gapAmount/);
 });
 
 test('shell chrome nav covers readiness surfaces', async () => {

@@ -82,7 +82,9 @@ test('FV-01..09 verify Quote Check only wiring', async () => {
   assert.match(panel, /RFQ/);
   assert.match(panel, /تفاوض/);
   assert.match(panel, /classification/);
-  assert.doesNotMatch(panel, /confidence|proposedAction|gapAmount/);
+  assert.match(panel, /verify-operational-fields/);
+  assert.match(panel, /result\.proposedAction/);
+  assert.doesNotMatch(panel, /gapAmount/);
   assert.match(panel, /DOCUMENT_LINK_INVALID/);
   assert.match(panel, /status === 403/);
   const contracts = await read('../../../packages/contracts/src/api.ts');

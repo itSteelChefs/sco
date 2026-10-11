@@ -1,4 +1,4 @@
-/** Pure guards for Partner engineering UI (Capability F). */
+/** Pure guards for Partner engineering UI (Capability F) + G leak shield. */
 
 export const FORBIDDEN_ENGINEERING_KEYS = [
   'internalEngineeringNotes',
@@ -6,6 +6,16 @@ export const FORBIDDEN_ENGINEERING_KEYS = [
   'engineeringInternalNote',
   'scoInternalComment',
   'rawReviewNotes',
+  'purchaseCost',
+  'historicalPurchasePrice',
+  'margin',
+  'grossMargin',
+  'supplierCompanyId',
+  'supplierScore',
+  'partnerAggregateDemand',
+  'internalBenchmark',
+  'evidenceInternal',
+  'priceHistory',
 ];
 
 export function findForbiddenEngineeringKeys(value, path = '') {

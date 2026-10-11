@@ -1,11 +1,20 @@
-/** Pure helpers for E commercial confidentiality tests (no React). */
+/** Pure helpers for E commercial + G intelligence confidentiality (no React). */
+
+import {
+  FORBIDDEN_PARTNER_INTELLIGENCE_KEYS,
+  findForbiddenKeys,
+  stripForbiddenKeys,
+} from '../../lib/g-partner-boundary.mjs';
 
 export const FORBIDDEN_COMMERCIAL_KEYS = [
   'purchaseCost',
   'unitPurchaseCost',
   'purchase_cost',
+  'historicalPurchasePrice',
   'margin',
   'markup',
+  'grossMargin',
+  'lineGrossMargin',
   'supplierCanonicalName',
   'supplierCompanyId',
   'supplierLegalName',
@@ -15,55 +24,35 @@ export const FORBIDDEN_COMMERCIAL_KEYS = [
   'supplierPo',
   'supplierPO',
   'supplierPurchaseOrder',
+  'supplierScore',
+  'partnerAggregateDemand',
+  'internalBenchmark',
+  'evidenceInternal',
+  'priceHistory',
+  'quoteBenchmark',
 ];
 
-/**
- * Deep-scan any value for forbidden commercial keys.
- * Returns list of offending key paths.
- */
 export function findForbiddenCommercialKeys(value, path = '') {
-  const hits = [];
-  if (value == null) return hits;
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => {
-      hits.push(...findForbiddenCommercialKeys(item, `${path}[${index}]`));
-    });
-    return hits;
-  }
-  if (typeof value !== 'object') return hits;
-  for (const [key, child] of Object.entries(value)) {
-    const next = path ? `${path}.${key}` : key;
-    if (FORBIDDEN_COMMERCIAL_KEYS.includes(key)) hits.push(next);
-    hits.push(...findForbiddenCommercialKeys(child, next));
-  }
-  return hits;
+  return findForbiddenKeys(value, FORBIDDEN_COMMERCIAL_KEYS, path);
 }
 
-/**
- * Strip forbidden keys from an object graph before Partner render.
- * Does not invent fields — only removes confidential ones if present.
- */
 export function stripForbiddenCommercialFields(value) {
-  if (value == null) return value;
-  if (Array.isArray(value)) return value.map((item) => stripForbiddenCommercialFields(item));
-  if (typeof value !== 'object') return value;
-  const out = {};
-  for (const [key, child] of Object.entries(value)) {
-    if (FORBIDDEN_COMMERCIAL_KEYS.includes(key)) continue;
-    out[key] = stripForbiddenCommercialFields(child);
-  }
-  return out;
+  return stripForbiddenKeys(value, FORBIDDEN_COMMERCIAL_KEYS);
 }
 
-/** Assert rendered HTML/text never contains confidential markers. */
 export function assertNoConfidentialRender(text) {
   const forbiddenSnippets = [
     'purchaseCost',
     'unitPurchaseCost',
+    'historicalPurchasePrice',
     'margin',
     'markup',
+    'grossMargin',
     'supplierCanonicalName',
     'supplierCompanyId',
+    'supplierScore',
+    'partnerAggregateDemand',
+    'internalBenchmark',
     'Contact supplier',
     'Supplier checkout',
     'Supplier payment',
@@ -71,6 +60,7 @@ export function assertNoConfidentialRender(text) {
     'تواصل مع المورد',
     'دفع للمورد',
   ];
-  const hits = forbiddenSnippets.filter((snippet) => text.includes(snippet));
-  return hits;
+  return forbiddenSnippets.filter((snippet) => text.includes(snippet));
 }
+
+export { FORBIDDEN_PARTNER_INTELLIGENCE_KEYS };

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isPartnerCommercialOrdersContractReady } from '../../lib/commercial-orders-api';
 import { isPartnerEngineeringContractReady } from '../../lib/engineering-api';
+import { filterPartnerNav } from '../../lib/g-partner-boundary.mjs';
 import styles from '../readiness/readiness.module.css';
 
 const BASE_NAV = [
@@ -21,11 +22,12 @@ const F_NAV = { href: '/portal/engineering', label: 'الدراسات الهند
 
 export function PortalChrome() {
   const pathname = usePathname() ?? '';
-  const nav = [
+  // G is internal-first: never surface Intelligence/Analytics/Demand nav on Partner.
+  const nav = filterPartnerNav([
     ...BASE_NAV,
     ...(isPartnerCommercialOrdersContractReady() ? [E_NAV] : []),
     ...(isPartnerEngineeringContractReady() ? [F_NAV] : []),
-  ];
+  ]);
 
   return (
     <div className={styles.topBar}>

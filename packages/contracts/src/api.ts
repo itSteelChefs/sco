@@ -558,6 +558,99 @@ export type InternalEngineeringDHandoff = {
 	status: string;
 };
 
+/* —— Capability F — Engineering Workspace (Partner; Cursor3 signed routes) —— */
+
+export type PartnerEngineeringRequestDraftInput = {
+	title: string;
+	sector: string;
+	description?: string;
+	requestType?: string;
+	projectReference?: string;
+	idempotencyKey?: string;
+};
+
+export type PartnerEngineeringDocumentLinkInput = {
+	documentId: string;
+	classification: 'DRAWING' | 'SPECIFICATION' | 'SCHEDULE' | 'SPREADSHEET' | 'IMAGE' | 'OTHER';
+};
+
+export type PartnerEngineeringRequestListItemDto = {
+	id: string;
+	title: string;
+	sector: string;
+	status: string;
+	projectReference?: string | null;
+	submittedAt?: string | null;
+	updatedAt: string;
+};
+
+export type PartnerEngineeringDocumentLinkDto = {
+	id: string;
+	documentId: string;
+	classification: string;
+	createdAt: string;
+};
+
+export type PartnerEngineeringRequestDetailDto = {
+	id: string;
+	title: string;
+	sector: string;
+	description?: string | null;
+	requestType?: string | null;
+	projectReference?: string | null;
+	status: string;
+	actionRequiredMessage?: string | null;
+	partnerVisibleNotes?: string | null;
+	submittedAt?: string | null;
+	currentApprovedBoqVersionId?: string | null;
+	documents: PartnerEngineeringDocumentLinkDto[];
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type PartnerEngineeringResultLineDto = {
+	id: string;
+	lineKey: string;
+	description: string;
+	specification?: string | null;
+	discipline?: string | null;
+	quantity: number;
+	unitId: string;
+	brandPreference?: string | null;
+	modelPreference?: string | null;
+	partnerVisibleNotes?: string | null;
+	sourceReference?: string | null;
+	sortOrder: number;
+};
+
+export type PartnerEngineeringApprovedResultDto = {
+	boqVersionId: string;
+	versionNumber: number;
+	status: string;
+	approvedAt?: string | null;
+	partnerVisibleNotes?: string | null;
+	lines: PartnerEngineeringResultLineDto[];
+};
+
+export type PartnerEngineeringHandoffDto = {
+	handoffId: string;
+	procurementRequirementId: string;
+	boqVersionId: string;
+	handedOffAt: string;
+};
+
+export type PartnerEngineeringResultDto = {
+	requestId: string;
+	status: string;
+	title: string;
+	sector?: string;
+	projectReference?: string | null;
+	actionRequiredMessage?: string | null;
+	partnerVisibleNotes?: string | null;
+	approvedResult: PartnerEngineeringApprovedResultDto | null;
+	handoff: PartnerEngineeringHandoffDto | null;
+};
+
 export class ApiClientError extends Error {
 	constructor(
 		public readonly status: number,
@@ -818,6 +911,63 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 		/* —— Capability E Partner commercial read (Cursor3 signed routes) —— */
 		partnerCommercialOrders: (companyId: string, signal?: AbortSignal) =>
 			request<PartnerCommercialOrderSummaryDto[]>('/api/v1/partner/commercial/orders', { companyId, signal }),
+
+		/* —— Capability F Partner engineering (Cursor3 /api/v1/partner/engineering) —— */
+		partnerEngineeringRequests: (companyId: string, signal?: AbortSignal) =>
+			request<PartnerEngineeringRequestListItemDto[]>('/api/v1/partner/engineering/requests', {
+				companyId,
+				signal,
+			}),
+		partnerEngineeringRequest: (companyId: string, requestId: string, signal?: AbortSignal) =>
+			request<PartnerEngineeringRequestDetailDto>(`/api/v1/partner/engineering/requests/${requestId}`, {
+				companyId,
+				signal,
+			}),
+		partnerEngineeringCreateDraft: (
+			companyId: string,
+			body: PartnerEngineeringRequestDraftInput,
+			signal?: AbortSignal,
+		) =>
+			request<PartnerEngineeringRequestDetailDto>('/api/v1/partner/engineering/requests', {
+				method: 'POST',
+				companyId,
+				body,
+				signal,
+			}),
+		partnerEngineeringUpdateDraft: (
+			companyId: string,
+			requestId: string,
+			body: PartnerEngineeringRequestDraftInput,
+			signal?: AbortSignal,
+		) =>
+			request<PartnerEngineeringRequestDetailDto>(`/api/v1/partner/engineering/requests/${requestId}`, {
+				method: 'PUT',
+				companyId,
+				body,
+				signal,
+			}),
+		partnerEngineeringSubmit: (companyId: string, requestId: string, signal?: AbortSignal) =>
+			request<PartnerEngineeringRequestDetailDto>(`/api/v1/partner/engineering/requests/${requestId}/submit`, {
+				method: 'POST',
+				companyId,
+				body: {},
+				signal,
+			}),
+		partnerEngineeringLinkDocument: (
+			companyId: string,
+			requestId: string,
+			body: PartnerEngineeringDocumentLinkInput,
+			signal?: AbortSignal,
+		) =>
+			request<{ linkId: string; requestId: string; documentId: string; classification: string }>(
+				`/api/v1/partner/engineering/requests/${requestId}/documents`,
+				{ method: 'POST', companyId, body, signal },
+			),
+		partnerEngineeringResult: (companyId: string, requestId: string, signal?: AbortSignal) =>
+			request<PartnerEngineeringResultDto>(`/api/v1/partner/engineering/requests/${requestId}/result`, {
+				companyId,
+				signal,
+			}),
 
 		/* —— Capability F internal engineering (Cursor3 /api/v1/internal/engineering) —— */
 		internalEngineeringRequests: (signal?: AbortSignal) =>

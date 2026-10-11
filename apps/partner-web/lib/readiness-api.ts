@@ -11,6 +11,8 @@ export const readinessApi = {
   qualificationCreateDraft: api.partnerQualificationCreateDraft.bind(api),
   qualificationSubmit: api.partnerQualificationSubmit.bind(api),
   documentUpload: api.partnerDocumentUpload.bind(api),
+  documentList: api.partnerDocuments.bind(api),
+  documentDownload: api.partnerDocumentDownload.bind(api),
   verifyCreate: api.partnerVerifyCreate.bind(api),
   verifyAttachQuote: api.partnerVerifyAttachQuote.bind(api),
   verifySubmit: api.partnerVerifySubmit.bind(api),

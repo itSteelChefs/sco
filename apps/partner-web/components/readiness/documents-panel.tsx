@@ -1,7 +1,12 @@
 'use client';
 
-import { ApiClientError, type PartnerDocumentCategory, type PartnerDocumentUploadResult } from '@sco/contracts';
-import { useMemo, useState } from 'react';
+import {
+  ApiClientError,
+  type PartnerDocumentCategory,
+  type PartnerDocumentMetadata,
+  type PartnerDocumentUploadResult,
+} from '@sco/contracts';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { readinessApi } from '../../lib/readiness-api';
 import { DOCUMENT_CATEGORY_OPTIONS, documentCategoryLabelAr, documentGroupLabelAr } from './readiness-labels';
 import styles from './readiness.module.css';
@@ -14,6 +19,20 @@ type Props = {
   onUploaded?: (doc: PartnerDocumentUploadResult) => void;
   /** Optional externally managed session uploads (e.g. Verify page). */
   sessionDocuments?: PartnerDocumentUploadResult[];
+};
+
+type ListedDoc = {
+  documentId: string;
+  filename: string;
+  contentType: string;
+  byteSize: number;
+  category: string;
+  retentionClass: string | null;
+  linkedEntityType: string | null;
+  linkedEntityId: string | null;
+  createdAt: string;
+  status?: string;
+  source: 'server' | 'session';
 };
 
 function fileToBase64(file: File): Promise<string> {
@@ -29,30 +48,83 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+function fromMetadata(doc: PartnerDocumentMetadata): ListedDoc {
+  return {
+    documentId: doc.documentId,
+    filename: doc.filename,
+    contentType: doc.contentType,
+    byteSize: doc.byteSize,
+    category: doc.category || 'GENERAL',
+    retentionClass: doc.retentionClass,
+    linkedEntityType: doc.linkedEntityType,
+    linkedEntityId: doc.linkedEntityId,
+    createdAt: doc.createdAt,
+    status: doc.status,
+    source: 'server',
+  };
+}
+
+function fromUpload(doc: PartnerDocumentUploadResult): ListedDoc {
+  return {
+    documentId: doc.documentId,
+    filename: doc.filename,
+    contentType: doc.contentType,
+    byteSize: doc.byteSize,
+    category: doc.category || 'GENERAL',
+    retentionClass: doc.retentionClass,
+    linkedEntityType: doc.linkedEntityType,
+    linkedEntityId: doc.linkedEntityId,
+    createdAt: doc.createdAt,
+    source: 'session',
+  };
+}
+
 export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Props) {
   const [category, setCategory] = useState<PartnerDocumentCategory>('VERIFY_QUOTE');
   const [file, setFile] = useState<File | null>(null);
+  const [serverDocs, setServerDocs] = useState<ListedDoc[]>([]);
   const [uploads, setUploads] = useState<PartnerDocumentUploadResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const allUploads = useMemo(() => {
-    const map = new Map<string, PartnerDocumentUploadResult>();
-    for (const doc of [...(sessionDocuments ?? []), ...uploads]) map.set(doc.documentId, doc);
+  const refreshServerList = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const page = await readinessApi.documentList(companyId, 1, 50);
+      setServerDocs(page.items.map(fromMetadata));
+    } catch (failure) {
+      if (failure instanceof ApiClientError) {
+        if (failure.status === 401) setError('انتهت الجلسة.');
+        else if (failure.status === 403) setError('لا تملك صلاحية عرض المستندات.');
+        else setError('تعذر تحميل قائمة المستندات.');
+      } else setError('تعذر تحميل قائمة المستندات.');
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void refreshServerList();
+  }, [refreshServerList]);
+
+  const allDocs = useMemo(() => {
+    const map = new Map<string, ListedDoc>();
+    for (const doc of serverDocs) map.set(doc.documentId, doc);
+    for (const doc of [...(sessionDocuments ?? []), ...uploads].map(fromUpload)) {
+      if (!map.has(doc.documentId)) map.set(doc.documentId, doc);
+    }
     return [...map.values()];
-  }, [sessionDocuments, uploads]);
+  }, [serverDocs, sessionDocuments, uploads]);
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, PartnerDocumentUploadResult[]>();
-    for (const doc of allUploads) {
+    const groups = new Map<string, ListedDoc[]>();
+    for (const doc of allDocs) {
       const key = doc.category || 'GENERAL';
       const list = groups.get(key) ?? [];
       list.push(doc);
       groups.set(key, list);
     }
     return [...groups.entries()];
-  }, [allUploads]);
+  }, [allDocs]);
 
   async function upload() {
     setError('');
@@ -83,6 +155,7 @@ export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Prop
       setMessage(`تم الرفع: ${result.filename}`);
       setFile(null);
       onUploaded?.(result);
+      await refreshServerList();
     } catch (failure) {
       setMessage('');
       if (failure instanceof ApiClientError) {
@@ -98,20 +171,48 @@ export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Prop
     }
   }
 
+  async function download(doc: ListedDoc) {
+    setError('');
+    setMessage('جارٍ التنزيل...');
+    setBusy(true);
+    try {
+      const response = await readinessApi.documentDownload(companyId, doc.documentId);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = doc.filename;
+      anchor.rel = 'noopener';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setMessage(`تم التنزيل: ${doc.filename}`);
+    } catch (failure) {
+      setMessage('');
+      if (failure instanceof ApiClientError) {
+        if (failure.status === 401) setError('انتهت الجلسة.');
+        else if (failure.status === 403) setError('لا تملك صلاحية تنزيل هذا المستند.');
+        else if (failure.status === 404) setError('المستند غير متاح للتنزيل.');
+        else setError('فشل التنزيل.');
+      } else setError('فشل التنزيل.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className={styles.panel} aria-labelledby="docs-title" data-testid="documents-panel">
       <div className={styles.statusRow}>
         <h2 id="docs-title">مركز المستندات</h2>
-        <span className={styles.truth}>LIVE · رفع فعّال</span>
+        <span className={styles.truth}>LIVE · قائمة وتنزيل</span>
       </div>
       <p className={styles.panelLead}>
-        رفع وتصنيف مستندات الشريك. قائمة الخادم الكاملة والتنزيل الآمن ينتظران عقد Codex1 — لا تُعرض صفوف
-        وهمية.
+        رفع وتصنيف مستندات الشريك مع قائمة الخادم والتنزيل الآمن داخل نطاق الشركة فقط.
       </p>
 
-      <p className={styles.note} role="status" data-testid="documents-server-list-waiting">
-        قائمة المستندات من الخادم والتنزيل عبر المسار الرسمي: بانتظار واجهة الخلفية المعتمدة. ما يظهر أدناه
-        هو مرفوعات هذه الجلسة الناجحة فقط.
+      <p className={styles.note} role="status" data-testid="documents-server-list-live">
+        قائمة المستندات والتنزيل عبر المسار الرسمي للخلفية. لا تُعرض صفوف وهمية خارج استجابة الخادم.
       </p>
 
       <div className={styles.form}>
@@ -149,6 +250,9 @@ export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Prop
           <button type="button" className={styles.button} disabled={busy || !file} onClick={() => void upload()}>
             {busy ? 'جارٍ الرفع...' : 'رفع المستند'}
           </button>
+          <button type="button" className={styles.buttonGhost} disabled={busy} onClick={() => void refreshServerList()}>
+            تحديث القائمة
+          </button>
         </div>
       </div>
 
@@ -161,19 +265,20 @@ export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Prop
         ) : null}
       </div>
 
-      {allUploads.length === 0 ? (
-        <p className={styles.hint} role="status">
-          لا مرفوعات في هذه الجلسة بعد.
+      {allDocs.length === 0 ? (
+        <p className={styles.hint} role="status" data-testid="documents-empty">
+          لا مستندات في القائمة بعد.
         </p>
       ) : (
         grouped.map(([cat, docs]) => (
           <div key={cat}>
             <h3>{documentGroupLabelAr(cat)}</h3>
-            <ul className={styles.agreementList}>
+            <ul className={styles.agreementList} data-testid="documents-server-list">
               {docs.map((doc) => (
                 <li key={doc.documentId}>
                   <strong>{doc.filename}</strong>
                   <span className={styles.badge}>{documentCategoryLabelAr(doc.category)}</span>
+                  {doc.retentionClass ? <span className={styles.hint}>احتفاظ: {doc.retentionClass}</span> : null}
                   <span className={styles.hint}>
                     {new Date(doc.createdAt).toLocaleString('ar')} · {doc.byteSize} بايت
                   </span>
@@ -181,6 +286,15 @@ export function DocumentsPanel({ companyId, onUploaded, sessionDocuments }: Prop
                     <span className={styles.hint}>مرتبط بمسار: {doc.linkedEntityType}</span>
                   ) : null}
                   <span className={styles.hint}>معرّف مختصر: {doc.documentId.slice(0, 8)}…</span>
+                  <button
+                    type="button"
+                    className={styles.buttonGhost}
+                    disabled={busy}
+                    data-testid={`document-download-${doc.documentId}`}
+                    onClick={() => void download(doc)}
+                  >
+                    تنزيل آمن
+                  </button>
                 </li>
               ))}
             </ul>

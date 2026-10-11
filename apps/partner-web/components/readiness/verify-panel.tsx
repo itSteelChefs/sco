@@ -264,10 +264,19 @@ export function VerifyPanel({ companyId, uploadedDocuments }: Props) {
               ))}
             </ul>
           )}
-          <p className={styles.hint}>
-            قيمة العرض والنطاق المرجعي والفجوة ودرجة الثقة والإجراء المقترح تُعرض فقط عند توفرها في عقد النتيجة
-            المعتمد — لا تُختَرع هنا.
-          </p>
+          <h4>الحقول التشغيلية</h4>
+          <dl className={styles.summaryGrid} data-testid="verify-operational-fields">
+            <dt>قيمة العرض</dt>
+            <dd>{result.offerValue == null ? '—' : JSON.stringify(result.offerValue)}</dd>
+            <dt>النطاق المرجعي المحقّق</dt>
+            <dd>{result.verifiedReferenceScope == null ? '—' : JSON.stringify(result.verifiedReferenceScope)}</dd>
+            <dt>الفجوة</dt>
+            <dd>{result.gap == null ? '—' : JSON.stringify(result.gap)}</dd>
+            <dt>الثقة</dt>
+            <dd>{result.confidence == null ? '—' : JSON.stringify(result.confidence)}</dd>
+            <dt>الإجراء المقترح</dt>
+            <dd>{result.proposedAction || '—'}</dd>
+          </dl>
         </section>
       ) : null}
 

@@ -20,6 +20,7 @@ const NAV = [
   { href: '/documents', label: 'المستندات' },
   { href: '/verify', label: 'تأكّد' },
   { href: '/commercial', label: 'التجاري' },
+  { href: '/engineering', label: 'الهندسة' },
 ] as const;
 
 export function OpsChrome({ children, title, lead }: Props) {

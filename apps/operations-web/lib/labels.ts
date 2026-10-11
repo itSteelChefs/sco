@@ -165,3 +165,70 @@ export function readinessReasonAr(reason: string): string {
       return reason;
   }
 }
+
+export function engineeringStatusAr(status: string): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'مسودة شريك';
+    case 'SUBMITTED':
+      return 'جديد / مُرسَل';
+    case 'ASSIGNED':
+      return 'مُسنَد';
+    case 'IN_REVIEW':
+      return 'قيد المراجعة';
+    case 'ACTION_REQUIRED':
+      return 'يتطلب معلومات من الشريك';
+    case 'BOQ_IN_PROGRESS':
+      return 'جداول كميات قيد الإعداد';
+    case 'PENDING_APPROVAL':
+      return 'بانتظار الاعتماد';
+    case 'APPROVED':
+      return 'معتمد / مكتمل';
+    case 'CANCELLED':
+      return 'ملغى';
+    case 'SUPERSEDED':
+      return 'مُستبدَل';
+    default:
+      return status;
+  }
+}
+
+export function boqVersionStatusAr(status: string): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'مسودة';
+    case 'IN_REVIEW':
+      return 'قيد المراجعة';
+    case 'APPROVED':
+      return 'معتمد';
+    case 'SUPERSEDED':
+      return 'مُستبدَل';
+    default:
+      return status;
+  }
+}
+
+export function engineeringDocClassAr(value: string | null | undefined): string {
+  switch (value) {
+    case 'DRAWING':
+    case 'ENGINEERING_DRAWING':
+      return 'مخطط';
+    case 'SPECIFICATION':
+    case 'ENGINEERING_SPECIFICATION':
+      return 'مواصفات';
+    case 'SCHEDULE':
+    case 'ENGINEERING_SCHEDULE':
+      return 'جدول';
+    case 'SPREADSHEET':
+    case 'ENGINEERING_SPREADSHEET':
+      return 'جدول بيانات';
+    case 'IMAGE':
+    case 'ENGINEERING_IMAGE':
+      return 'صورة';
+    case 'OTHER':
+    case 'ENGINEERING_OTHER':
+      return 'أخرى';
+    default:
+      return value || '—';
+  }
+}

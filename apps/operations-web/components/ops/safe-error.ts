@@ -37,5 +37,28 @@ export function mapOpsError(failure: unknown, fallback: string): string {
   if (failure.code === 'SELECTION_NOT_READY' || failure.code === 'E_HANDOFF_NOT_READY') {
     return 'مرشّح الاختيار غير جاهز للمعالجة التجارية.';
   }
+  if (
+    failure.code === 'ENGINEERING_REVIEW_FORBIDDEN' ||
+    failure.code === 'ENGINEERING_ASSIGN_FORBIDDEN' ||
+    failure.code === 'ENGINEERING_BOQ_EDIT_FORBIDDEN' ||
+    failure.code === 'ENGINEERING_BOQ_APPROVE_FORBIDDEN'
+  ) {
+    return 'غير مصرح بهذا الإجراء الهندسي في هذا السياق.';
+  }
+  if (failure.code === 'ENGINEERING_QUANTITY_INVALID') {
+    return 'الكمية غير صالحة — يجب أن تكون أكبر من صفر.';
+  }
+  if (failure.code === 'ENGINEERING_BOQ_NOT_EDITABLE' || failure.code === 'ENGINEERING_BOQ_NOT_APPROVABLE') {
+    return 'إصدار جداول الكميات غير قابل للتعديل أو الاعتماد في حالته الحالية.';
+  }
+  if (failure.code === 'ENGINEERING_STATE_INVALID' || failure.code === 'ENGINEERING_ASSIGN_STATE_INVALID') {
+    return 'انتقال الحالة غير مسموح من الحالة الحالية.';
+  }
+  if (failure.code === 'ENGINEERING_BOQ_DRAFT_EXISTS') {
+    return 'توجد مسودة جداول كميات بالفعل لهذا الطلب.';
+  }
+  if (failure.code === 'ENGINEERING_BOQ_EMPTY') {
+    return 'لا يمكن اعتماد جداول كميات بلا بنود.';
+  }
   return fallback;
 }

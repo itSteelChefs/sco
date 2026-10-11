@@ -26,6 +26,11 @@ type PartnerVerifyResultDto = {
   classification: string;
   finalizedAt: string;
   coverage: PartnerVerifyCoverageEntry[];
+  offerValue: unknown;
+  verifiedReferenceScope: unknown;
+  gap: unknown;
+  confidence: unknown;
+  proposedAction: string;
 };
 
 type PartnerVerifyResultRow = {
@@ -37,6 +42,11 @@ type PartnerVerifyResultRow = {
   classification: string;
   finalized_at: string;
   coverage: Array<Record<string, unknown>> | null;
+  offer_value: unknown;
+  verified_reference_scope: unknown;
+  gap: unknown;
+  confidence: unknown;
+  proposed_action: string;
 };
 
 @Injectable()
@@ -166,6 +176,11 @@ export class PartnerVerifyService {
         lineCoveragePercent: Number(entry.lineCoveragePercent),
         valueCoveragePercent: Number(entry.valueCoveragePercent),
       })),
+      offerValue: row.offer_value,
+      verifiedReferenceScope: row.verified_reference_scope,
+      gap: row.gap,
+      confidence: row.confidence,
+      proposedAction: row.proposed_action,
     };
   }
 }

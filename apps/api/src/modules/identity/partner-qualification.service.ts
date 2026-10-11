@@ -8,6 +8,9 @@ import type { PartnerQualificationDraftDto } from './partner-qualification.dto.j
 type QualificationRow = {
   id: string;
   status: string;
+  review_state: string;
+  action_required: boolean;
+  action_required_reason: string | null;
   legal_name: string;
   commercial_identifier: string | null;
   responsible_person: string | null;
@@ -24,6 +27,9 @@ type QualificationRow = {
 export type PartnerQualificationDto = {
   id: string;
   status: string;
+  reviewState: string;
+  actionRequired: boolean;
+  actionRequiredReason: string | null;
   companyName: string;
   commercialIdentifier: string | null;
   responsiblePerson: string | null;
@@ -94,6 +100,9 @@ export class PartnerQualificationService {
     return {
       id: row.id,
       status: row.status,
+      reviewState: row.review_state,
+      actionRequired: row.action_required,
+      actionRequiredReason: row.action_required_reason,
       companyName: row.legal_name,
       commercialIdentifier: row.commercial_identifier,
       responsiblePerson: row.responsible_person,

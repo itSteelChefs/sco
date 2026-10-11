@@ -12,7 +12,7 @@ export class QualificationService {
       : this.internal.qualificationCreate(actorUserId, legalName, contactEmail));
   }
 
-  decide(actorUserId: string, id: string, status: 'APPROVED' | 'REJECTED', reason: string) {
+  decide(actorUserId: string, id: string, status: 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'REJECTED', reason: string) {
     return withAdmissionErrors(() => this.internal.qualificationDecide(actorUserId, id, status, reason));
   }
 

@@ -14,9 +14,12 @@ import { RbacModule } from '../rbac/rbac.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { createDocumentStorageProvider, DOCUMENT_STORAGE } from './storage-provider.js';
 import { MetricsService } from '../../observability/metrics.service.js';
+import { DocumentCenterController } from './document-center.controller.js';
+import { DocumentCenterService } from './document-center.service.js';
+import { InternalDocumentCenterController } from './internal-document-center.controller.js';
 @Module({
   imports: [DatabaseModule, AuditModule, AuthModule, IdentityModule, RbacModule, AuthorizationModule],
-  controllers: [ProcurementDocumentsController, PartnerDocumentUploadController],
+  controllers: [ProcurementDocumentsController, PartnerDocumentUploadController, DocumentCenterController, InternalDocumentCenterController],
   providers: [
     { provide: DOCUMENT_STORAGE, inject: [MetricsService], useFactory: (metrics: MetricsService) => createDocumentStorageProvider(process.env, metrics) },
     DocumentsService,
@@ -24,6 +27,7 @@ import { MetricsService } from '../../observability/metrics.service.js';
     ProcurementDocumentsService,
     SupplierQuoteDocumentService,
     PartnerDocumentUploadService,
+    DocumentCenterService,
   ],
   exports: [DocumentsService, ProcurementDocumentsService, SupplierQuoteDocumentService, PartnerDocumentUploadService],
 })

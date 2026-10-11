@@ -222,6 +222,9 @@ describe('Wave2 qualification self-serve', () => {
       'procurementFrequency',
       'procurementSize',
       'responsiblePerson',
+      'reviewState',
+      'actionRequired',
+      'actionRequiredReason',
       'sector',
       'status',
       'submittedAt',
@@ -363,6 +366,27 @@ describe('Wave2 partner document upload', () => {
       },
     });
     expect(response.statusCode).toBe(400);
+  });
+
+  it('D-12 lists tenant metadata and downloads only the authorized private object', async () => {
+    const cookie = await login(member);
+    const upload = await app.inject({
+      method: 'POST', url: '/api/v1/partner/documents/upload',
+      headers: { cookie, 'x-sco-company-id': partnerCompany },
+      payload: { category: 'GENERAL', filename: 'downloadable.pdf', contentType: 'application/pdf', contentBase64: Buffer.from('private-document').toString('base64') },
+    });
+    const documentId = JSON.parse(upload.body).documentId as string;
+    const list = await app.inject({ method: 'GET', url: '/api/v1/partner/documents?page=1&pageSize=100', headers: { cookie, 'x-sco-company-id': partnerCompany } });
+    expect(list.statusCode).toBe(200);
+    const listed = JSON.parse(list.body).items.find((item: { documentId: string }) => item.documentId === documentId);
+    expect(listed).toMatchObject({ documentId, filename: 'downloadable.pdf' });
+    expect(listed).not.toHaveProperty('storageKey');
+    const download = await app.inject({ method: 'GET', url: `/api/v1/partner/documents/${documentId}/download`, headers: { cookie, 'x-sco-company-id': partnerCompany } });
+    expect(download.statusCode).toBe(200);
+    expect(download.headers['content-type']).toContain('application/pdf');
+    expect(download.body).toBe('private-document');
+    const audit = await owner.query(`SELECT count(*)::int AS n FROM audit_logs WHERE action='document.accessed' AND entity_id=$1`, [documentId]);
+    expect(audit.rows[0].n).toBe(1);
   });
 });
 

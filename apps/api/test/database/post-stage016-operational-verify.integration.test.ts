@@ -30,6 +30,12 @@ async function connection(url: string, actor: string, tenant: string | null) {
 describe('Post-Stage016 operational Verify', () => {
   beforeAll(async () => {
     partnerCompany = id(); internalCompany = id(); partnerUser = id(); analyst = id(); approver = id(); unitId = id();
+    // security-gate and similar suites TRUNCATE "User"; restore the fixed verify system actor before run create.
+    await owner.query(
+      `INSERT INTO "User"(id,email,"passwordHash",status)
+       VALUES ('00000000-0000-4000-9000-000000005357','verify-system@sco.internal','SYSTEM_ACCOUNT_NO_LOGIN_NOT_A_REAL_HASH','ACTIVE')
+       ON CONFLICT (id) DO NOTHING`,
+    );
     await owner.query('INSERT INTO "Company"(id,name,type,status) VALUES($1,\'Operational Verify Partner\',\'PARTNER\',\'ACTIVE\'),($2,\'Operational Verify SCO\',\'SCO\',\'ACTIVE\')', [partnerCompany, internalCompany]);
     await owner.query('INSERT INTO unit_definitions(id,code,name,dimension) VALUES($1,$2,\'Each\',\'count\')', [unitId, `operational-verify-${unitId}`]);
     await owner.query('INSERT INTO "User"(id,email,"passwordHash",status) VALUES($1,$2,\'x\',\'ACTIVE\'),($3,$4,\'x\',\'ACTIVE\'),($5,$6,\'x\',\'ACTIVE\')', [partnerUser, `${partnerUser}@operational.test`, analyst, `${analyst}@operational.test`, approver, `${approver}@operational.test`]);

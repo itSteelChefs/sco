@@ -59,6 +59,12 @@ beforeAll(async () => {
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
   await owner.query('TRUNCATE TABLE "Company", "User" CASCADE');
+  // Preserve fixed verify system actor required by VERIFY_SYSTEM run attribution (0084).
+  await owner.query(
+    `INSERT INTO "User"(id,email,"passwordHash",status)
+     VALUES ('00000000-0000-4000-9000-000000005357','verify-system@sco.internal','SYSTEM_ACCOUNT_NO_LOGIN_NOT_A_REAL_HASH','ACTIVE')
+     ON CONFLICT (id) DO NOTHING`,
+  );
   await owner.query(
     `INSERT INTO "Company" (id, name, type) VALUES
       ($1, 'Partner A', 'PARTNER'),

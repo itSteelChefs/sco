@@ -13,7 +13,6 @@ import { moneyAr, purchaseStatusAr } from '../../lib/labels';
 import { EmptyState, ErrorState, LoadingState } from '../product-state';
 import { AllocationPanel } from './allocation-panel';
 import { ConsolidationPanel } from './consolidation-panel';
-import { FulfillmentReadinessPanel } from './fulfillment-readiness';
 import { ResaleOps } from './resale-ops';
 import { mapOpsError } from './safe-error';
 import styles from './ops.module.css';
@@ -424,18 +423,13 @@ export function SupplierOrderWorkspace({ supplierOrderId }: Props) {
         </section>
       </div>
 
-      <FulfillmentReadinessPanel
-        readiness={{
-          ready: false,
-          reasons: [],
-          source: 'BACKEND',
-          supplierOrderId,
-        }}
-      />
-      <p className={styles.note} style={{ marginTop: '-0.5rem' }}>
-        جاهزية التنفيذ النهائية تُقرأ من حقل <span dir="ltr">fulfillmentReady</span> في أمر إعادة البيع بعد إنشائه
-        وتأكيده — لا تُحسب قواعد منافسة هنا.
-      </p>
+      <section className={styles.panel} aria-labelledby="readiness-note-title">
+        <h2 id="readiness-note-title">جاهزية التنفيذ</h2>
+        <p className={styles.muted}>
+          لا تُعرض إشارة جاهزية مخترعة على أمر المورّد. المصدر الوحيد الموقّع هو حقل{' '}
+          <span dir="ltr">fulfillmentReady</span> على أمر إعادة البيع بعد إنشائه — افتح أمر إعادة البيع للاطلاع.
+        </p>
+      </section>
     </div>
   );
 }

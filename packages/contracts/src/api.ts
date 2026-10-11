@@ -574,11 +574,8 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 				signal,
 			}),
 
-		/* —— Capability E internal commercial (Cursor3 signed routes) —— */
-		internalCommercialQueues: (signal?: AbortSignal) =>
-			request<InternalCommercialQueueCounts>('/api/v1/internal/commercial/queues', { signal }),
-		internalSelectionCandidates: (signal?: AbortSignal) =>
-			request<InternalSelectionCandidate[]>('/api/v1/internal/commercial/selections', { signal }),
+		/* —— Capability E internal commercial (Cursor3 signed routes only) —— */
+		/** D certified list — SELECTION_READY rows feed E commercial entry (no unsigned commercial list APIs). */
 		internalProcurementRequirements: (signal?: AbortSignal) =>
 			request<InternalProcurementRequirementListItem[]>('/api/v1/internal/procurement/requirements', { signal }),
 		internalPurchaseCreateFromSelection: (

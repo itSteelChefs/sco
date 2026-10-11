@@ -16,9 +16,12 @@ type Props = {
   }) => Promise<void>;
 };
 
+/**
+ * Partner is bound to the supplier order line (Cursor3 allocates by orderLineId only).
+ * Free partner selection that disagrees with the line is rejected client-side.
+ */
 export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
   const [purchaseLineId, setPurchaseLineId] = useState('');
-  const [partnerCompanyId, setPartnerCompanyId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [localError, setLocalError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -29,38 +32,35 @@ export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
     return [...map.values()];
   }, [rows]);
 
-  const partners = useMemo(() => {
-    const map = new Map<string, InternalAllocationLine>();
-    for (const row of rows) map.set(row.partnerCompanyId, row);
-    return [...map.values()];
-  }, [rows]);
-
   const selectedLine = lineOptions.find((row) => row.purchaseLineId === purchaseLineId);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLocalError(undefined);
     const qty = Number(quantity);
-    if (!purchaseLineId || !partnerCompanyId) {
-      setLocalError('اختر خط الشراء والشريك.');
+    if (!purchaseLineId || !selectedLine) {
+      setLocalError('اختر خط الشراء.');
+      return;
+    }
+    if (!selectedLine.partnerCompanyId) {
+      setLocalError('خط الشراء بلا شريك مرتبط — لا يمكن التوزيع.');
       return;
     }
     if (!Number.isFinite(qty) || qty <= 0) {
       setLocalError('الكمية يجب أن تكون رقمًا موجبًا.');
       return;
     }
-    if (selectedLine && qty > selectedLine.remainingQuantity) {
+    if (qty > selectedLine.remainingQuantity) {
       setLocalError('لا يمكن تجاوز الكمية المتبقية (حماية واجهة — الخادم هو المرجع).');
       return;
     }
     setBusy(true);
     try {
-      const partner = partners.find((row) => row.partnerCompanyId === partnerCompanyId);
       await onAllocate({
         purchaseLineId,
-        partnerCompanyId,
+        partnerCompanyId: selectedLine.partnerCompanyId,
         quantity: qty,
-        requirementId: partner?.requirementId ?? undefined,
+        requirementId: selectedLine.requirementId ?? undefined,
       });
       setQuantity('');
     } finally {
@@ -72,7 +72,7 @@ export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
     <section className={styles.panel} aria-labelledby="alloc-title">
       <h2 id="alloc-title">توزيع على مستوى الخط</h2>
       <p className={styles.muted}>
-        الكمية المشتراة · الموزَّعة · المتبقية · طلب الشريك · حالة خط إعادة البيع. الخادم يمنع التوزيع الزائد.
+        الشريك يُستمد من خط أمر المورّد — لا اختيار شريك حر يخالف الخط. الخادم يمنع التوزيع الزائد.
       </p>
 
       {rows.length === 0 ? (
@@ -83,7 +83,7 @@ export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
             <thead>
               <tr>
                 <th scope="col">خط الشراء</th>
-                <th scope="col">الشريك</th>
+                <th scope="col">الشريك (من الخط)</th>
                 <th scope="col">مشتراة</th>
                 <th scope="col">موزَّعة</th>
                 <th scope="col">متبقية</th>
@@ -93,9 +93,9 @@ export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={`${row.purchaseLineId}-${row.partnerCompanyId}-${row.id ?? 'new'}`}>
+                <tr key={`${row.purchaseLineId}-${row.partnerCompanyId}-${row.id ?? 'row'}`}>
                   <td dir="ltr">{row.purchaseLineId.slice(0, 8)}…</td>
-                  <td>{row.partnerCompanyId}</td>
+                  <td dir="ltr">{row.partnerCompanyId}</td>
                   <td dir="ltr">{row.purchasedQuantity}</td>
                   <td dir="ltr">{row.allocatedQuantity}</td>
                   <td dir="ltr">{row.remainingQuantity}</td>
@@ -113,7 +113,7 @@ export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
           تسجيل توزيع
         </h3>
         <label className={styles.field}>
-          خط الشراء
+          خط الشراء (يحدد الشريك)
           <select
             value={purchaseLineId}
             onChange={(e) => setPurchaseLineId(e.target.value)}
@@ -123,27 +123,18 @@ export function AllocationPanel({ rows, disabled, onAllocate }: Props) {
             <option value="">—</option>
             {lineOptions.map((row) => (
               <option key={row.purchaseLineId} value={row.purchaseLineId}>
-                {row.purchaseLineId.slice(0, 8)}… (متبقي {row.remainingQuantity})
+                {row.purchaseLineId.slice(0, 8)}… · شريك {row.partnerCompanyId.slice(0, 8)}… · متبقي{' '}
+                {row.remainingQuantity}
               </option>
             ))}
           </select>
         </label>
-        <label className={styles.field}>
-          الشريك
-          <select
-            value={partnerCompanyId}
-            onChange={(e) => setPartnerCompanyId(e.target.value)}
-            disabled={disabled || busy}
-            required
-          >
-            <option value="">—</option>
-            {partners.map((row) => (
-              <option key={row.partnerCompanyId} value={row.partnerCompanyId}>
-                {row.partnerCompanyId}
-              </option>
-            ))}
-          </select>
-        </label>
+        {selectedLine ? (
+          <p className={styles.note} role="status">
+            الشريك المرتبط بالخط:{' '}
+            <strong dir="ltr">{selectedLine.partnerCompanyId}</strong> — لا يُستبدل من الواجهة.
+          </p>
+        ) : null}
         <label className={styles.field}>
           الكمية
           <input

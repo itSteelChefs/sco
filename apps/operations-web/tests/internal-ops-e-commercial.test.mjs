@@ -15,12 +15,12 @@ async function readContracts() {
   return readFile(join(contractsRoot, 'api.ts'), 'utf8');
 }
 
-test('E-I01 purchase queue lists selections / D requirements', async () => {
+test('E-I01 purchase queue lists D requirements only (no unsigned selections list)', async () => {
   const queue = await read('components/ops/purchase-queue.tsx');
-  assert.match(queue, /internalSelectionCandidates/);
   assert.match(queue, /internalProcurementRequirements/);
   assert.match(queue, /SELECTION_READY/);
   assert.match(queue, /فتح نية شراء|فتح تحضير شراء/);
+  assert.doesNotMatch(queue, /internalSelectionCandidates|internalCommercialQueues|\/commercial\/queues|\/commercial\/selections/);
 });
 
 test('E-I02 create/open purchase from selection', async () => {
@@ -82,7 +82,7 @@ test('E-I07 consolidation workspace', async () => {
   assert.match(panel, /crossSupplier|مورّدين مختلفين/);
 });
 
-test('E-I08 allocation UI', async () => {
+test('E-I08 allocation UI binds partner to line', async () => {
   const panel = await read('components/ops/allocation-panel.tsx');
   const supplier = await read('components/ops/supplier-order-workspace.tsx');
   const contracts = await readContracts();
@@ -91,6 +91,9 @@ test('E-I08 allocation UI', async () => {
   assert.match(panel, /purchasedQuantity/);
   assert.match(panel, /remainingQuantity/);
   assert.match(panel, /resaleLineStatus/);
+  assert.match(panel, /partnerCompanyId: selectedLine\.partnerCompanyId/);
+  assert.match(panel, /لا يُستبدل من الواجهة/);
+  assert.doesNotMatch(panel, /setPartnerCompanyId/);
 });
 
 test('E-I09 over-allocation client guard', async () => {
@@ -142,17 +145,30 @@ test('E-I14 cancellation/revision safe path without delete', async () => {
   assert.doesNotMatch(supplier, /deletePurchase|onDelete|internalPurchaseCancel/);
 });
 
-test('ops home exposes E commercial actionable queues', async () => {
+test('ops home E queues use signed D count only — no unsigned commercial queue API', async () => {
   const home = await read('components/ops/ops-home.tsx');
-  assert.match(home, /internalCommercialQueues/);
-  assert.match(home, /SELECTIONS_READY/);
-  assert.match(home, /PURCHASES_NEEDING_APPROVAL/);
-  assert.match(home, /POS_AWAITING_ISSUE/);
-  assert.match(home, /SUPPLIER_CONFIRMATIONS_PENDING/);
-  assert.match(home, /ALLOCATIONS_INCOMPLETE/);
-  assert.match(home, /RESALE_ORDERS_PENDING/);
-  assert.match(home, /FULFILLMENT_READY/);
+  assert.match(home, /internalProcurementRequirements/);
+  assert.match(home, /selectionsReady/);
+  assert.match(home, /اختيارات جاهزة للمعالجة التجارية/);
+  assert.match(home, /نوايا\/أوامر شراء بانتظار الاعتماد/);
+  assert.match(home, /بلا عدّاد غير موقّع/);
+  assert.doesNotMatch(home, /internalCommercialQueues|\/commercial\/queues|\/commercial\/selections/);
   assert.doesNotMatch(home, /KPI|revenue chart|vanity/i);
+});
+
+test('P1 closure: supplier order does not invent fulfillmentReady=false', async () => {
+  const supplier = await read('components/ops/supplier-order-workspace.tsx');
+  assert.doesNotMatch(supplier, /FulfillmentReadinessPanel/);
+  assert.doesNotMatch(supplier, /ready:\s*false/);
+  assert.match(supplier, /fulfillmentReady/);
+});
+
+test('P1 closure: contracts omit unsigned commercial list routes', async () => {
+  const contracts = await readContracts();
+  assert.doesNotMatch(contracts, /\/api\/v1\/internal\/commercial\/queues/);
+  assert.doesNotMatch(contracts, /\/api\/v1\/internal\/commercial\/selections/);
+  assert.match(contracts, /\/api\/v1\/internal\/commercial\/purchases\/from-selection/);
+  assert.match(contracts, /\/api\/v1\/internal\/procurement\/requirements/);
 });
 
 test('Arabic-first RTL and commercial nav', async () => {

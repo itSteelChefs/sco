@@ -7,6 +7,7 @@ import { ApiClientError, type InternalPurchaseIntent } from '@sco/contracts';
 import { api } from '../../lib/api';
 import { moneyAr, purchaseStatusAr } from '../../lib/labels';
 import { EmptyState, ErrorState, LoadingState } from '../product-state';
+import { IntelligenceDecisionSupportPanel } from './intelligence-decision-support';
 import { mapOpsError } from './safe-error';
 import styles from './ops.module.css';
 
@@ -211,6 +212,11 @@ export function PurchaseWorkspace({ purchaseIntentId }: Props) {
       </section>
 
       <div style={{ display: 'grid', gap: '1.25rem' }}>
+        {intent.lines.find((line) => line.quoteLineId)?.quoteLineId ? (
+          <IntelligenceDecisionSupportPanel
+            quoteLineId={intent.lines.find((line) => line.quoteLineId)!.quoteLineId!}
+          />
+        ) : null}
         {needsApproval ? (
           <section className={styles.panel} aria-labelledby="approve-title">
             <h2 id="approve-title">الاعتماد التجاري</h2>

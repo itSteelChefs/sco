@@ -21,6 +21,7 @@ const NAV = [
   { href: '/verify', label: 'تأكّد' },
   { href: '/commercial', label: 'التجاري' },
   { href: '/engineering', label: 'الهندسة' },
+  { href: '/intelligence', label: 'ذكاء المشتريات' },
 ] as const;
 
 export function OpsChrome({ children, title, lead }: Props) {

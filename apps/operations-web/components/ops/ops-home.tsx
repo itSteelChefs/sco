@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { ApiClientError } from '@sco/contracts';
 import { api } from '../../lib/api';
 import { EmptyState, ErrorState, LoadingState } from '../product-state';
-import { mapOpsError } from './safe-error';
 import styles from './ops.module.css';
 
 type Counts = {
@@ -16,6 +15,16 @@ type Counts = {
   verifySubmitted: number;
   verifyInReview: number;
   verifyApproval: number;
+  /** From signed D procurement requirements only — never from unsigned commercial list APIs. */
+  selectionsReady: number | null;
+};
+
+type QueueCard = {
+  key: string;
+  href: string;
+  count: number | null;
+  label: string;
+  hint: string;
 };
 
 export function OpsHome() {
@@ -36,6 +45,7 @@ export function OpsHome() {
         verifySubmitted: 0,
         verifyInReview: 0,
         verifyApproval: 0,
+        selectionsReady: null,
       };
       const warnings: string[] = [];
       try {
@@ -69,10 +79,19 @@ export function OpsHome() {
       } catch {
         warnings.push('تأكّد');
       }
+      try {
+        const requirements = await api.internalProcurementRequirements();
+        next.selectionsReady = requirements.filter((row) =>
+          ['SELECTION_READY', 'SELECTED'].includes(row.status),
+        ).length;
+      } catch {
+        warnings.push('التجاري/D');
+        next.selectionsReady = null;
+      }
       if (cancelled) return;
       setCounts(next);
       setPartial(warnings);
-      if (warnings.length === 3) setError('تعذر تحميل طوابير التشغيل. تحقق من صلاحياتك الداخلية.');
+      if (warnings.length >= 4) setError('تعذر تحميل طوابير التشغيل. تحقق من صلاحياتك الداخلية.');
     }
     void load();
     return () => {
@@ -83,65 +102,125 @@ export function OpsHome() {
   if (error && !counts) return <ErrorState message={error} />;
   if (!counts) return <LoadingState />;
 
-  const cards = [
+  const cards: QueueCard[] = [
     {
+      key: 'qual-review',
       href: '/qualifications?status=SUBMITTED',
       count: counts.qualificationsReview,
       label: 'تأهيلات بانتظار المراجعة',
       hint: 'مُرسَل أو قيد المراجعة',
     },
     {
+      key: 'qual-follow',
       href: '/qualifications?status=ACTION_REQUIRED',
       count: counts.qualificationsFollowUp,
       label: 'تأهيلات تتطلب متابعة',
       hint: 'إجراء مطلوب من الشريك',
     },
     {
+      key: 'agreements',
       href: '/agreements',
       count: counts.agreementsPending,
       label: 'اتفاقيات غير مستوفاة',
       hint: 'من جاهزية الشراكة',
     },
     {
+      key: 'verify-sub',
       href: '/verify?status=SUBMITTED',
       count: counts.verifySubmitted,
       label: 'طلبات تأكّد مُرسَلة',
       hint: 'بانتظار التحليل',
     },
     {
+      key: 'verify-rev',
       href: '/verify?status=IN_REVIEW',
       count: counts.verifyInReview,
       label: 'طلبات تأكّد قيد المراجعة',
       hint: 'تحليل جارٍ',
     },
     {
+      key: 'verify-prep',
       href: '/verify?status=PREPARED',
       count: counts.verifyApproval,
       label: 'نتائج بانتظار الاعتماد',
       hint: 'جاهزة للمُعتمد',
     },
+    {
+      key: 'e-selections',
+      href: '/commercial',
+      count: counts.selectionsReady,
+      label: 'اختيارات جاهزة للمعالجة التجارية',
+      hint: 'عدّاد من متطلب D الموقّع فقط',
+    },
+    {
+      key: 'e-approval',
+      href: '/commercial',
+      count: null,
+      label: 'نوايا/أوامر شراء بانتظار الاعتماد',
+      hint: 'افتح مساحة التجاري — بلا عدّاد غير موقّع',
+    },
+    {
+      key: 'e-issue',
+      href: '/commercial',
+      count: null,
+      label: 'أوامر شراء بانتظار الإصدار',
+      hint: 'افتح مساحة التجاري — بلا عدّاد غير موقّع',
+    },
+    {
+      key: 'e-confirm',
+      href: '/commercial',
+      count: null,
+      label: 'تأكيدات مورّد معلّقة',
+      hint: 'افتح مساحة التجاري — بلا عدّاد غير موقّع',
+    },
+    {
+      key: 'e-alloc',
+      href: '/commercial',
+      count: null,
+      label: 'توزيعات غير مكتملة',
+      hint: 'افتح مساحة التجاري — بلا عدّاد غير موقّع',
+    },
+    {
+      key: 'e-resale',
+      href: '/commercial',
+      count: null,
+      label: 'أوامر إعادة بيع بانتظار التأكيد',
+      hint: 'أمر لكل شريك — بلا عدّاد غير موقّع',
+    },
+    {
+      key: 'e-ready',
+      href: '/commercial',
+      count: null,
+      label: 'جاهزية التنفيذ',
+      hint: 'من fulfillmentReady في أمر إعادة البيع',
+    },
   ];
+
+  const numericPending = cards.some((card) => typeof card.count === 'number' && card.count > 0);
 
   return (
     <>
       {partial.length ? (
         <p className={styles.note} role="status">
-          بعض الطوابير غير متاحة حاليًا ({partial.join(' · ')}). تُعرض الأرقام المتاحة فقط.
+          بعض الطوابير غير متاحة حاليًا ({partial.join(' · ')}). تُعرض الأرقام المتاحة فقط — دون أصفار ملفّقة من عقود غير
+          موقّعة.
         </p>
       ) : null}
       <section className={styles.panel} aria-labelledby="queues-title">
         <h2 id="queues-title">طوابير قابلة للتنفيذ</h2>
-        <p className={styles.muted}>لا إحصاءات تجميلية — فقط ما يحتاج تدخّل SCO الآن.</p>
+        <p className={styles.muted}>لا إحصاءات تجميلية — فقط ما يمكن قياسه من عقود موقّعة أو مساحة عمل صريحة.</p>
         <div className={styles.queueGrid}>
           {cards.map((card) => (
-            <Link key={card.href} href={card.href} className={styles.queueCard}>
-              <span className={styles.queueCount}>{card.count}</span>
+            <Link key={card.key} href={card.href} className={styles.queueCard}>
+              <span className={styles.queueCount} aria-label={card.count == null ? 'بدون عدّاد موقّع' : undefined}>
+                {card.count == null ? '→' : card.count}
+              </span>
               <span className={styles.queueLabel}>{card.label}</span>
               <span className={styles.queueHint}>{card.hint}</span>
             </Link>
           ))}
         </div>
-        {!cards.some((card) => card.count > 0) ? <EmptyState message="لا توجد عناصر معلّقة في الطوابير المتاحة." /> : null}
+        {!numericPending ? <EmptyState message="لا توجد عناصر معلّقة بعدّاد موقّع في الطوابير المتاحة." /> : null}
       </section>
     </>
   );

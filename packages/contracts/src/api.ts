@@ -232,6 +232,192 @@ export type PartnerVerifyResult = {
 	proposedAction: string;
 };
 
+/* —— Capability E — Buy & Resell (aligned to Cursor3 /api/v1/internal/commercial) —— */
+
+export type InternalCommercialQueueKey =
+	| 'SELECTIONS_READY'
+	| 'PURCHASES_NEEDING_APPROVAL'
+	| 'POS_AWAITING_ISSUE'
+	| 'SUPPLIER_CONFIRMATIONS_PENDING'
+	| 'ALLOCATIONS_INCOMPLETE'
+	| 'RESALE_ORDERS_PENDING'
+	| 'FULFILLMENT_READY';
+
+export type InternalCommercialQueueCounts = Record<InternalCommercialQueueKey, number>;
+
+/** D selection candidate ready for E (when list endpoint is available). */
+export type InternalSelectionCandidate = {
+	id: string;
+	requirementId: string;
+	quoteId: string;
+	supplierCompanyId: string;
+	supplierName?: string | null;
+	aliasLabel?: string | null;
+	companyId: string;
+	partnerDisplayName?: string | null;
+	requirementTitle?: string | null;
+	currencyCode?: string | null;
+	comparableTotal?: number | null;
+	eHandoffReady: boolean;
+	updatedAt?: string;
+};
+
+/** Purchase intent created from D selection — Cursor3 getIntent. */
+export type InternalPurchaseIntent = {
+	id: string;
+	selectionCandidateId: string;
+	requirementId: string;
+	partnerCompanyId: string;
+	quoteId: string;
+	supplierCompanyId: string;
+	aliasLabel?: string | null;
+	currencyCode: string;
+	status: string;
+	purchaseSubtotal: number;
+	purchaseTotal: number;
+	paymentTerms?: string | null;
+	/** Present only when margin is authorized; otherwise omit/undefined. */
+	grossMargin?: number | null;
+	canViewMargin?: boolean;
+	lines: InternalPurchaseIntentLine[];
+};
+
+export type InternalPurchaseIntentLine = {
+	id: string;
+	quoteLineId?: string | null;
+	requirementLineId?: string | null;
+	description?: string | null;
+	quantity: number;
+	purchaseUnitPrice: number;
+	lineAmount: number;
+	valueState?: string | null;
+};
+
+/** Consolidated SCO→Supplier order — Cursor3 getSupplierOrder. */
+export type InternalSupplierOrder = {
+	id: string;
+	orderReference?: string | null;
+	scoBuyerCompanyId?: string | null;
+	supplierCompanyId: string;
+	status: string;
+	currencyCode: string;
+	purchaseSubtotal: number;
+	purchaseTotal: number;
+	paymentTerms?: string | null;
+	commercialTerms?: string | null;
+	issuedAt?: string | null;
+	confirmedAt?: string | null;
+	confirmationReference?: string | null;
+	expectedDeliveryDate?: string | null;
+	grossMargin?: number | null;
+	canViewMargin?: boolean;
+	lines: InternalSupplierOrderLine[];
+};
+
+export type InternalSupplierOrderLine = {
+	id: string;
+	partnerCompanyId: string;
+	requirementLineId?: string | null;
+	description?: string | null;
+	orderedQuantity: number;
+	confirmedQuantity?: number | null;
+	allocatedQuantity?: number | null;
+	purchaseUnitPrice: number;
+	lineAmount: number;
+	availableToAllocate: number;
+};
+
+export type InternalPartnerAllocation = {
+	id: string;
+	supplierOrderLineId: string;
+	supplierOrderId: string;
+	partnerCompanyId: string;
+	requirementId?: string | null;
+	requirementLineId?: string | null;
+	allocatedQuantity: number;
+	purchaseUnitPrice: number;
+	purchaseLineAmount: number;
+	status: string;
+	resaleOrderLineId?: string | null;
+};
+
+export type InternalResaleOrder = {
+	id: string;
+	orderReference?: string | null;
+	partnerCompanyId: string;
+	scoSellerCompanyId?: string | null;
+	status: string;
+	currencyCode: string;
+	paymentTerms?: string | null;
+	saleSubtotal: number;
+	saleTotal: number;
+	/** Internal cost total — may be omitted by permission. */
+	purchaseCostTotal?: number | null;
+	grossMargin?: number | null;
+	canViewMargin?: boolean;
+	supplierAliasLabel?: string | null;
+	fulfillmentReady: boolean;
+	confirmedAt?: string | null;
+	lines: InternalResaleLine[];
+};
+
+export type InternalResaleLine = {
+	id: string;
+	allocationId?: string | null;
+	description?: string | null;
+	quantity: number;
+	saleUnitPrice: number;
+	saleLineAmount: number;
+	purchaseUnitPrice?: number | null;
+	purchaseLineAmount?: number | null;
+	lineGrossMargin?: number | null;
+};
+
+/** UI consolidation row derived from supplier order lines (same-supplier only). */
+export type InternalConsolidationRow = {
+	partnerCompanyId: string;
+	partnerDisplayName?: string | null;
+	requirementId: string;
+	purchaseLineId: string;
+	supplierCompanyId: string;
+	requestedQuantity: number;
+	allocatedQuantity: number;
+	remainingQuantity: number;
+};
+
+/** UI allocation table row (maps to supplier order line + allocation). */
+export type InternalAllocationLine = {
+	id?: string;
+	purchaseLineId: string;
+	partnerCompanyId: string;
+	requirementId?: string | null;
+	purchasedQuantity: number;
+	allocatedQuantity: number;
+	remainingQuantity: number;
+	partnerRequestedQuantity?: number | null;
+	resaleLineStatus?: string | null;
+};
+
+export type InternalFulfillmentReadiness = {
+	ready: boolean;
+	reasons: string[];
+	source: 'RESALE_ORDER' | 'SUPPLIER_ORDER' | 'BACKEND';
+	resaleOrderId?: string;
+	supplierOrderId?: string;
+	fulfillmentReady?: boolean;
+};
+
+/** D internal requirement list row (SELECTION_READY feeds E queue). */
+export type InternalProcurementRequirementListItem = {
+	id: string;
+	companyId: string;
+	title: string;
+	sector?: string | null;
+	status: string;
+	submittedAt?: string | null;
+	updatedAt: string;
+};
+
 export class ApiClientError extends Error {
 	constructor(
 		public readonly status: number,
@@ -383,6 +569,107 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 			}),
 		internalVerifyApproveResult: (resultId: string, signal?: AbortSignal) =>
 			request<{ resultId: string; status: string }>(`/api/v1/internal/verify/results/${resultId}/approve`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+
+		/* —— Capability E internal commercial (Cursor3 signed routes only) —— */
+		/** D certified list — SELECTION_READY rows feed E commercial entry (no unsigned commercial list APIs). */
+		internalProcurementRequirements: (signal?: AbortSignal) =>
+			request<InternalProcurementRequirementListItem[]>('/api/v1/internal/procurement/requirements', { signal }),
+		internalPurchaseCreateFromSelection: (
+			body: { selectionCandidateId: string; idempotencyKey: string },
+			signal?: AbortSignal,
+		) =>
+			request<InternalPurchaseIntent>('/api/v1/internal/commercial/purchases/from-selection', {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalPurchaseGet: (intentId: string, signal?: AbortSignal) =>
+			request<InternalPurchaseIntent>(`/api/v1/internal/commercial/purchases/${intentId}`, { signal }),
+		internalPurchaseApprove: (intentId: string, signal?: AbortSignal) =>
+			request<InternalPurchaseIntent>(`/api/v1/internal/commercial/purchases/${intentId}/approve`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalSupplierOrderCreate: (
+			body: { intentIds: string[]; idempotencyKey: string; deliveryContext?: string; commercialTerms?: string },
+			signal?: AbortSignal,
+		) =>
+			request<InternalSupplierOrder>('/api/v1/internal/commercial/supplier-orders', {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalSupplierOrderGet: (orderId: string, signal?: AbortSignal) =>
+			request<InternalSupplierOrder>(`/api/v1/internal/commercial/supplier-orders/${orderId}`, { signal }),
+		internalSupplierOrderApprove: (orderId: string, signal?: AbortSignal) =>
+			request<InternalSupplierOrder>(`/api/v1/internal/commercial/supplier-orders/${orderId}/approve`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalSupplierOrderIssue: (orderId: string, signal?: AbortSignal) =>
+			request<InternalSupplierOrder>(`/api/v1/internal/commercial/supplier-orders/${orderId}/issue`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalSupplierOrderConfirm: (
+			orderId: string,
+			body: {
+				confirmationReference?: string;
+				expectedDeliveryDate?: string;
+				notes?: string;
+				lineConfirmations?: Array<{ lineId: string; confirmedQuantity: number }>;
+			},
+			signal?: AbortSignal,
+		) =>
+			request<InternalSupplierOrder>(`/api/v1/internal/commercial/supplier-orders/${orderId}/confirm`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalAllocationCreate: (
+			body: { orderLineId: string; quantity: number; idempotencyKey: string },
+			signal?: AbortSignal,
+		) =>
+			request<InternalPartnerAllocation>('/api/v1/internal/commercial/allocations', {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalAllocationGet: (allocationId: string, signal?: AbortSignal) =>
+			request<InternalPartnerAllocation>(`/api/v1/internal/commercial/allocations/${allocationId}`, { signal }),
+		internalResaleCreate: (
+			body: {
+				partnerCompanyId: string;
+				allocations: Array<{ allocationId: string; saleUnitPrice: number }>;
+				idempotencyKey: string;
+				paymentTerms?: string;
+				deliveryTerms?: string;
+				commercialNotes?: string;
+			},
+			signal?: AbortSignal,
+		) =>
+			request<InternalResaleOrder>('/api/v1/internal/commercial/resale-orders', {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalResaleGet: (resaleOrderId: string, signal?: AbortSignal) =>
+			request<InternalResaleOrder>(`/api/v1/internal/commercial/resale-orders/${resaleOrderId}`, { signal }),
+		internalResaleApprove: (resaleOrderId: string, signal?: AbortSignal) =>
+			request<InternalResaleOrder>(`/api/v1/internal/commercial/resale-orders/${resaleOrderId}/approve`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalResaleConfirm: (resaleOrderId: string, signal?: AbortSignal) =>
+			request<InternalResaleOrder>(`/api/v1/internal/commercial/resale-orders/${resaleOrderId}/confirm`, {
 				method: 'POST',
 				body: {},
 				signal,

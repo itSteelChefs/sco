@@ -19,6 +19,7 @@ const NAV = [
   { href: '/agreements', label: 'الاتفاقيات' },
   { href: '/documents', label: 'المستندات' },
   { href: '/verify', label: 'تأكّد' },
+  { href: '/commercial', label: 'التجاري' },
 ] as const;
 
 export function OpsChrome({ children, title, lead }: Props) {

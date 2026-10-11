@@ -8,10 +8,11 @@ import { InternalBuyResellController } from './internal-buy-resell.controller.js
 import { InternalBuyResellService } from './internal-buy-resell.service.js';
 import { PartnerBuyResellController } from './partner-buy-resell.controller.js';
 import { PartnerBuyResellService } from './partner-buy-resell.service.js';
+import { CommercialInternalTransactionService } from './commercial-internal-transaction.service.js';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuditModule, IdentityModule, RbacModule],
   controllers: [InternalBuyResellController, PartnerBuyResellController],
-  providers: [InternalBuyResellService, PartnerBuyResellService],
+  providers: [CommercialInternalTransactionService, InternalBuyResellService, PartnerBuyResellService],
 })
 export class BuyResellModule {}

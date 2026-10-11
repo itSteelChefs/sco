@@ -103,3 +103,65 @@ export function formatWhen(value: string | Date | null | undefined): string {
   if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
+
+export function purchaseStatusAr(status: string): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'مسودة';
+    case 'PENDING_APPROVAL':
+      return 'بانتظار الاعتماد التجاري';
+    case 'APPROVED':
+      return 'معتمد تجاريًا';
+    case 'ISSUED':
+      return 'مُصدَر للمورّد';
+    case 'CONFIRMED':
+      return 'مؤكد من المورّد';
+    case 'PARTIALLY_ALLOCATED':
+      return 'توزيع جزئي';
+    case 'ALLOCATED':
+      return 'موزَّع';
+    case 'CANCELLED':
+      return 'ملغى';
+    case 'REVISED':
+      return 'مراجَع';
+    default:
+      return status;
+  }
+}
+
+export function resaleStatusAr(status: string): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'مسودة';
+    case 'PENDING_CONFIRMATION':
+      return 'بانتظار التأكيد';
+    case 'CONFIRMED':
+      return 'مؤكد';
+    case 'CANCELLED':
+      return 'ملغى';
+    default:
+      return status;
+  }
+}
+
+export function moneyAr(amount: number | null | undefined, currency = 'SAR'): string {
+  if (amount == null || Number.isNaN(amount)) return '—';
+  return new Intl.NumberFormat('ar-SA', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
+}
+
+export function readinessReasonAr(reason: string): string {
+  switch (reason) {
+    case 'SUPPLIER_CONFIRMATION_MISSING':
+      return 'تأكيد المورّد ناقص';
+    case 'ALLOCATION_INCOMPLETE':
+      return 'التوزيع غير مكتمل';
+    case 'RESALE_NOT_CONFIRMED':
+      return 'أمر إعادة البيع للشريك غير مؤكد';
+    case 'COMMERCIAL_APPROVAL_MISSING':
+      return 'الاعتماد التجاري ناقص';
+    case 'PO_NOT_ISSUED':
+      return 'أمر الشراء غير مُصدَر';
+    default:
+      return reason;
+  }
+}

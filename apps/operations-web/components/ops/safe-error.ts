@@ -15,5 +15,27 @@ export function mapOpsError(failure: unknown, fallback: string): string {
     return 'غير مصرح بعرض أو تعديل مسار التوثيق.';
   }
   if (failure.code === 'DOCUMENT_READ_FORBIDDEN') return 'غير مصرح بعرض مستندات الشركاء.';
+  if (
+    failure.code === 'COMMERCIAL_FORBIDDEN' ||
+    failure.code === 'PURCHASE_FORBIDDEN' ||
+    failure.code === 'MARGIN_FORBIDDEN' ||
+    failure.code === 'ALLOCATION_FORBIDDEN' ||
+    failure.code === 'RESALE_FORBIDDEN'
+  ) {
+    return 'غير مصرح بهذا الإجراء التجاري في هذا السياق.';
+  }
+  if (
+    failure.code === 'ALLOCATION_EXCEEDS_AVAILABLE' ||
+    failure.code === 'OVER_ALLOCATION' ||
+    failure.code === 'ALLOCATION_INVALID'
+  ) {
+    return 'التوزيع يتجاوز الكمية المتاحة. صحّح الكميات ثم أعد المحاولة.';
+  }
+  if (failure.code === 'CROSS_SUPPLIER_MERGE_FORBIDDEN') {
+    return 'لا يمكن دمج طلبات من مورّدين مختلفين في أمر شراء واحد.';
+  }
+  if (failure.code === 'SELECTION_NOT_READY' || failure.code === 'E_HANDOFF_NOT_READY') {
+    return 'مرشّح الاختيار غير جاهز للمعالجة التجارية.';
+  }
   return fallback;
 }

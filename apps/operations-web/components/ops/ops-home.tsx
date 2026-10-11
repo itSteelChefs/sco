@@ -3,10 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ApiClientError } from '@sco/contracts';
+import { ApiClientError, type InternalCommercialQueueCounts } from '@sco/contracts';
 import { api } from '../../lib/api';
 import { EmptyState, ErrorState, LoadingState } from '../product-state';
-import { mapOpsError } from './safe-error';
 import styles from './ops.module.css';
 
 type Counts = {
@@ -16,6 +15,7 @@ type Counts = {
   verifySubmitted: number;
   verifyInReview: number;
   verifyApproval: number;
+  commercial: Partial<InternalCommercialQueueCounts>;
 };
 
 export function OpsHome() {
@@ -36,6 +36,7 @@ export function OpsHome() {
         verifySubmitted: 0,
         verifyInReview: 0,
         verifyApproval: 0,
+        commercial: {},
       };
       const warnings: string[] = [];
       try {
@@ -69,10 +70,15 @@ export function OpsHome() {
       } catch {
         warnings.push('تأكّد');
       }
+      try {
+        next.commercial = await api.internalCommercialQueues();
+      } catch {
+        warnings.push('التجاري');
+      }
       if (cancelled) return;
       setCounts(next);
       setPartial(warnings);
-      if (warnings.length === 3) setError('تعذر تحميل طوابير التشغيل. تحقق من صلاحياتك الداخلية.');
+      if (warnings.length >= 4) setError('تعذر تحميل طوابير التشغيل. تحقق من صلاحياتك الداخلية.');
     }
     void load();
     return () => {
@@ -119,6 +125,48 @@ export function OpsHome() {
       count: counts.verifyApproval,
       label: 'نتائج بانتظار الاعتماد',
       hint: 'جاهزة للمُعتمد',
+    },
+    {
+      href: '/commercial?tab=selections',
+      count: counts.commercial.SELECTIONS_READY ?? 0,
+      label: 'اختيارات جاهزة للمعالجة التجارية',
+      hint: 'من D → شراء',
+    },
+    {
+      href: '/commercial?tab=purchases&filter=approval',
+      count: counts.commercial.PURCHASES_NEEDING_APPROVAL ?? 0,
+      label: 'نوايا/أوامر شراء بانتظار الاعتماد',
+      hint: 'اعتماد تجاري صريح',
+    },
+    {
+      href: '/commercial?tab=purchases&filter=issue',
+      count: counts.commercial.POS_AWAITING_ISSUE ?? 0,
+      label: 'أوامر شراء بانتظار الإصدار',
+      hint: 'إصدار للمورّد',
+    },
+    {
+      href: '/commercial?tab=purchases&filter=confirm',
+      count: counts.commercial.SUPPLIER_CONFIRMATIONS_PENDING ?? 0,
+      label: 'تأكيدات مورّد معلّقة',
+      hint: 'مرجع · كمية · تاريخ',
+    },
+    {
+      href: '/commercial?tab=purchases&filter=allocate',
+      count: counts.commercial.ALLOCATIONS_INCOMPLETE ?? 0,
+      label: 'توزيعات غير مكتملة',
+      hint: 'على مستوى الخط',
+    },
+    {
+      href: '/commercial?tab=purchases',
+      count: counts.commercial.RESALE_ORDERS_PENDING ?? 0,
+      label: 'أوامر إعادة بيع بانتظار التأكيد',
+      hint: 'أمر لكل شريك',
+    },
+    {
+      href: '/commercial?tab=purchases',
+      count: counts.commercial.FULFILLMENT_READY ?? 0,
+      label: 'طلبات جاهزة للتنفيذ',
+      hint: 'حسب أسباب الخادم',
     },
   ];
 

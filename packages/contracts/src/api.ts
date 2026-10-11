@@ -856,6 +856,141 @@ export class ApiClientError extends Error {
 type RequestOptions = { method?: string; companyId?: string; body?: unknown; signal?: AbortSignal };
 type ApiClientOptions = { baseUrl?: string; fetchImpl?: typeof fetch };
 
+
+/* —— Capability H — Operational Platform (internal) —— */
+
+export type HWorkItemStatus = 'OPEN' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE' | string;
+export type HWorkQueueView = 'all' | 'my' | 'unassigned' | 'blocked' | 'aging' | string;
+
+export type HWorkItem = {
+	id: string;
+	domain: string;
+	sourceEntityType: string;
+	sourceEntityId: string;
+	workType: string;
+	status: HWorkItemStatus;
+	priority: number;
+	assignedUserId?: string | null;
+	dueAt?: string | null;
+	actionRequired?: boolean;
+	blockedReason?: string | null;
+	nextAction?: string | null;
+	cycleId?: string | null;
+	partnerCompanyId?: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type HWorkQueue = {
+	total: number;
+	limit: number;
+	offset: number;
+	view: string;
+	items: HWorkItem[];
+};
+
+export type HException = {
+	id: string;
+	domain: string;
+	exceptionType: string;
+	status: string;
+	retryable: boolean;
+	attemptCount: number;
+	maxAttempts: number;
+	lastAttemptAt?: string | null;
+	nextAllowedAttemptAt?: string | null;
+	safeErrorCode: string;
+	safeErrorMessage: string;
+	workItemId?: string | null;
+	createdAt: string;
+	sourceEntityType?: string;
+	sourceEntityId?: string;
+};
+
+export type HWeeklyCycle = {
+	id: string;
+	cycleCode: string;
+	startsAt: string;
+	cutoffAt: string;
+	endsAt: string;
+	status: string;
+	lockedAt?: string | null;
+	completedAt?: string | null;
+	membershipCount: number;
+	memberships: Array<{
+		workItemId: string;
+		sourceKey: string;
+		overrideReason?: string | null;
+	}>;
+};
+
+export type HNotificationPage = {
+	total: number;
+	unreadCount: number;
+	limit: number;
+	offset: number;
+	items: Array<{
+		id: string;
+		eventType: string;
+		title: string;
+		body: string;
+		domain?: string | null;
+		sourceEntityId?: string | null;
+		workItemId?: string | null;
+		readAt?: string | null;
+		createdAt: string;
+	}>;
+};
+
+export type HJobEnqueueResult = { id: string };
+export type HJobRunResult = {
+	jobId: string;
+	status: string;
+	summary?: Record<string, unknown>;
+	idempotent?: boolean;
+};
+
+export type HHealth = {
+	calculatedAt: string;
+	api: string;
+	database: string;
+	latestMigration?: string | null;
+	jobs: { pending: number; running: number; failed: number; succeeded: number };
+	notifications: { unread: number };
+	workQueue: { open: number; blocked: number };
+	exceptions: { open: number };
+	gRefresh?: { lastRunAt?: string | null; lastInserted?: number | null };
+	documents?: { available?: number };
+};
+
+export type HConfigMap = Record<
+	string,
+	{ value: Record<string, unknown>; version: number; updatedAt?: string }
+>;
+
+export type HAuditEvidencePage = {
+	total: number;
+	limit: number;
+	offset: number;
+	items: Array<{
+		id: string;
+		action: string;
+		entityType: string;
+		entityId: string;
+		actorUserId?: string | null;
+		createdAt: string;
+		metadata?: Record<string, unknown> | null;
+	}>;
+};
+
+export type HQueueQuery = {
+	view?: HWorkQueueView;
+	domain?: string;
+	limit?: number;
+	offset?: number;
+};
+
+
 export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOptions = {}) {
 	async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
 		const correlationId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : undefined;
@@ -1267,6 +1402,150 @@ export function createApiClient({ baseUrl = '', fetchImpl = fetch }: ApiClientOp
 			if (query.offset != null) params.set('offset', String(query.offset));
 			const qs = params.toString();
 			return request<GEvidencePage>(`/api/v1/internal/g-intelligence/evidence${qs ? `?${qs}` : ''}`, { signal });
+		},
+
+
+		/* —— Capability H internal operations (Cursor3 /api/v1/internal/h-operations) —— */
+		internalHWorkQueue: (query: HQueueQuery = {}, signal?: AbortSignal) => {
+			const params = new URLSearchParams();
+			if (query.view) params.set('view', query.view);
+			if (query.domain) params.set('domain', query.domain);
+			if (query.limit != null) params.set('limit', String(query.limit));
+			if (query.offset != null) params.set('offset', String(query.offset));
+			const qs = params.toString();
+			return request<HWorkQueue>(`/api/v1/internal/h-operations/work-items${qs ? `?${qs}` : ''}`, { signal });
+		},
+		internalHWorkAssign: (workItemId: string, body: { assigneeUserId: string }, signal?: AbortSignal) =>
+			request<{ id: string; assignedUserId: string }>(
+				`/api/v1/internal/h-operations/work-items/${workItemId}/assign`,
+				{ method: 'POST', body, signal },
+			),
+		internalHWorkTransition: (
+			workItemId: string,
+			body: { status: string; blockedReason?: string },
+			signal?: AbortSignal,
+		) =>
+			request<{ id: string; status: string }>(
+				`/api/v1/internal/h-operations/work-items/${workItemId}/transition`,
+				{ method: 'POST', body, signal },
+			),
+		internalHExceptionGet: (exceptionId: string, signal?: AbortSignal) =>
+			request<HException>(`/api/v1/internal/h-operations/exceptions/${exceptionId}`, { signal }),
+		internalHExceptionAck: (exceptionId: string, signal?: AbortSignal) =>
+			request<HException>(`/api/v1/internal/h-operations/exceptions/${exceptionId}/ack`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalHExceptionRetry: (exceptionId: string, signal?: AbortSignal) =>
+			request<{ exceptionId: string; attempt: number; status: string }>(
+				`/api/v1/internal/h-operations/exceptions/${exceptionId}/retry`,
+				{ method: 'POST', body: {}, signal },
+			),
+		internalHExceptionResolve: (exceptionId: string, body: { note?: string } = {}, signal?: AbortSignal) =>
+			request<HException>(`/api/v1/internal/h-operations/exceptions/${exceptionId}/resolve`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalHCycleCreate: (
+			body: { startsAt: string; cutoffAt: string; endsAt: string },
+			signal?: AbortSignal,
+		) => request<HWeeklyCycle>('/api/v1/internal/h-operations/cycles', { method: 'POST', body, signal }),
+		internalHCycleGet: (cycleId: string, signal?: AbortSignal) =>
+			request<HWeeklyCycle>(`/api/v1/internal/h-operations/cycles/${cycleId}`, { signal }),
+		internalHCycleLock: (cycleId: string, signal?: AbortSignal) =>
+			request<HWeeklyCycle>(`/api/v1/internal/h-operations/cycles/${cycleId}/lock`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalHCycleComplete: (cycleId: string, signal?: AbortSignal) =>
+			request<HWeeklyCycle>(`/api/v1/internal/h-operations/cycles/${cycleId}/complete`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalHCycleOverrideInclude: (
+			cycleId: string,
+			body: { workItemId: string; reason: string },
+			signal?: AbortSignal,
+		) =>
+			request<HWeeklyCycle>(`/api/v1/internal/h-operations/cycles/${cycleId}/override-include`, {
+				method: 'POST',
+				body,
+				signal,
+			}),
+		internalHNotifications: (
+			query: { unreadOnly?: boolean; limit?: number; offset?: number } = {},
+			signal?: AbortSignal,
+		) => {
+			const params = new URLSearchParams();
+			if (query.unreadOnly) params.set('unreadOnly', 'true');
+			if (query.limit != null) params.set('limit', String(query.limit));
+			if (query.offset != null) params.set('offset', String(query.offset));
+			const qs = params.toString();
+			return request<HNotificationPage>(
+				`/api/v1/internal/h-operations/notifications${qs ? `?${qs}` : ''}`,
+				{ signal },
+			);
+		},
+		internalHNotificationRead: (notificationId: string, signal?: AbortSignal) =>
+			request<{ marked: number }>(`/api/v1/internal/h-operations/notifications/${notificationId}/read`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalHNotificationsReadAll: (signal?: AbortSignal) =>
+			request<{ marked: number }>('/api/v1/internal/h-operations/notifications/read-all', {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalHJobEnqueue: (
+			body: { jobType: string; idempotencyKey: string; payload?: Record<string, unknown> },
+			signal?: AbortSignal,
+		) => request<HJobEnqueueResult>('/api/v1/internal/h-operations/jobs', { method: 'POST', body, signal }),
+		internalHJobRun: (jobId: string, signal?: AbortSignal) =>
+			request<HJobRunResult>(`/api/v1/internal/h-operations/jobs/${jobId}/run`, {
+				method: 'POST',
+				body: {},
+				signal,
+			}),
+		internalHHealth: (signal?: AbortSignal) =>
+			request<HHealth>('/api/v1/internal/h-operations/health', { signal }),
+		internalHConfigGet: (signal?: AbortSignal) =>
+			request<HConfigMap>('/api/v1/internal/h-operations/config', { signal }),
+		internalHConfigSet: (body: { key: string; value: Record<string, unknown> }, signal?: AbortSignal) =>
+			request<{ key: string; value: Record<string, unknown>; version: number }>(
+				'/api/v1/internal/h-operations/config',
+				{ method: 'POST', body, signal },
+			),
+		internalHAuditEvidence: (
+			query: {
+				domain?: string;
+				entityId?: string;
+				action?: string;
+				from?: string;
+				to?: string;
+				limit?: number;
+				offset?: number;
+			} = {},
+			signal?: AbortSignal,
+		) => {
+			const params = new URLSearchParams();
+			if (query.domain) params.set('domain', query.domain);
+			if (query.entityId) params.set('entityId', query.entityId);
+			if (query.action) params.set('action', query.action);
+			if (query.from) params.set('from', query.from);
+			if (query.to) params.set('to', query.to);
+			if (query.limit != null) params.set('limit', String(query.limit));
+			if (query.offset != null) params.set('offset', String(query.offset));
+			const qs = params.toString();
+			return request<HAuditEvidencePage>(
+				`/api/v1/internal/h-operations/audit-evidence${qs ? `?${qs}` : ''}`,
+				{ signal },
+			);
 		},
 
 		partnerCommercialOrder: (companyId: string, orderId: string, signal?: AbortSignal) =>

@@ -166,15 +166,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app?.close();
-  // Verify history (verify_requests/.../verify_results) is immutable by design (existing 1-D invariant, unrelated
-  // to Batch 1-E) -- it cannot be deleted here even for test cleanup, so this suite only tears down connections.
-  // Note: a pre-existing, unrelated file (test/integration/security-gate.integration.test.ts) performs a blanket
-  // "DELETE FROM \"User\"" as part of its own setup; since Verify's immutable audit trail can reference any User
-  // row, that blanket delete can fail with an FK violation if it runs after this suite's fixtures exist in the same
-  // vitest invocation. This is a pre-existing test-isolation characteristic of that other file (any Verify-creating
-  // test collides with it the same way), not something introduced by or fixable from within this file; run this
-  // suite standalone (`vitest run test/integration/partner-verify-http.integration.test.ts`) for a deterministic
-  // result, as already validated.
+  // Verify history (verify_requests/.../verify_results) is immutable by design — this suite tears down connections only.
+  // Parallel isolation: security-gate must not TRUNCATE Company/User CASCADE (scoped fixture reset only).
   await owner?.end();
   await system?.end();
   await internal?.end();

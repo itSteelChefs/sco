@@ -20,10 +20,49 @@ const suspendedUser = '10000000-0000-4000-8000-000000000003';
 const revokedUser = '10000000-0000-4000-8000-000000000004';
 const disabledUser = '10000000-0000-4000-8000-000000000005';
 const internalUser = '10000000-0000-4000-8000-000000000006';
+const verifySystemActor = '00000000-0000-4000-9000-000000005357';
 const password = randomBytes(32).toString('base64url');
+
+/** Only this suite's deterministic fixture IDs — never global TRUNCATE (breaks parallel Verify fixtures). */
+const SECURITY_GATE_COMPANIES = [companyA, companyB, companyC];
+const SECURITY_GATE_USERS = [userA, multiUser, suspendedUser, revokedUser, disabledUser, internalUser];
 
 let app: NestFastifyApplication;
 let owner: Client;
+
+async function execBestEffort(client: Client, sql: string, params: unknown[] = []): Promise<void> {
+  try {
+    await client.query(sql, params);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/does not exist|undefined_table|violates foreign key constraint/i.test(message)) throw error;
+  }
+}
+
+/**
+ * Reset only Security Gate owned fixtures. Preserves other suites' companies/users
+ * (e.g. partner-verify-http @http-1e.test) under parallel vitest file execution.
+ */
+async function resetSecurityGateFixtures(client: Client): Promise<void> {
+  const companies = SECURITY_GATE_COMPANIES;
+  const users = SECURITY_GATE_USERS;
+
+  await execBestEffort(client, `DELETE FROM "Session" WHERE "userId" = ANY($1::uuid[])`, [users]);
+  await execBestEffort(client, `DELETE FROM partner_agreement_acceptance_events WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(client, `DELETE FROM partner_agreement_acceptances WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(client, `DELETE FROM company_partnerships WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(client, `DELETE FROM documents WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(client, `DELETE FROM "RolePermission" WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(client, `DELETE FROM "MembershipRole" WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(client, `DELETE FROM "Role" WHERE company_id = ANY($1::uuid[])`, [companies]);
+  await execBestEffort(
+    client,
+    `DELETE FROM "CompanyMembership" WHERE "companyId" = ANY($1::uuid[]) OR "userId" = ANY($2::uuid[])`,
+    [companies, users],
+  );
+  await execBestEffort(client, `DELETE FROM "User" WHERE id = ANY($1::uuid[])`, [users]);
+  await execBestEffort(client, `DELETE FROM "Company" WHERE id = ANY($1::uuid[])`, [companies]);
+}
 
 async function login(email: string) {
   const response = await app.inject({
@@ -58,18 +97,21 @@ beforeAll(async () => {
   await owner.connect();
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
-  await owner.query('TRUNCATE TABLE "Company", "User" CASCADE');
+  // Scoped reset only — TRUNCATE Company/User CASCADE destroys parallel Verify fixtures (Codex4 VH-01).
+  await resetSecurityGateFixtures(owner);
   // Preserve fixed verify system actor required by VERIFY_SYSTEM run attribution (0084).
   await owner.query(
     `INSERT INTO "User"(id,email,"passwordHash",status)
-     VALUES ('00000000-0000-4000-9000-000000005357','verify-system@sco.internal','SYSTEM_ACCOUNT_NO_LOGIN_NOT_A_REAL_HASH','ACTIVE')
+     VALUES ($1,'verify-system@sco.internal','SYSTEM_ACCOUNT_NO_LOGIN_NOT_A_REAL_HASH','ACTIVE')
      ON CONFLICT (id) DO NOTHING`,
+    [verifySystemActor],
   );
   await owner.query(
     `INSERT INTO "Company" (id, name, type) VALUES
       ($1, 'Partner A', 'PARTNER'),
       ($2, 'Partner B', 'PARTNER'),
-      ($3, 'Partner C', 'PARTNER')`,
+      ($3, 'Partner C', 'PARTNER')
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type, status = 'ACTIVE'`,
     [companyA, companyB, companyC],
   );
   await owner.query(
@@ -79,8 +121,14 @@ beforeAll(async () => {
       ($3, 'suspended@sco.test', $6, 'ACTIVE'),
       ($4, 'revoked@sco.test', $6, 'ACTIVE'),
       ($5, 'disabled@sco.test', $6, 'ACTIVE'),
-      ($7, 'internal@sco.test', $6, 'ACTIVE')`,
+      ($7, 'internal@sco.test', $6, 'ACTIVE')
+     ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, "passwordHash" = EXCLUDED."passwordHash", status = 'ACTIVE'`,
     [userA, multiUser, suspendedUser, revokedUser, disabledUser, passwordHash, internalUser],
+  );
+  // Memberships: replace only rows for this suite's users/companies
+  await owner.query(
+    `DELETE FROM "CompanyMembership" WHERE "companyId" = ANY($1::uuid[]) OR "userId" = ANY($2::uuid[])`,
+    [SECURITY_GATE_COMPANIES, SECURITY_GATE_USERS],
   );
   await owner.query(
     `INSERT INTO "CompanyMembership" ("userId", "companyId", status) VALUES

@@ -55,7 +55,7 @@ jobs:
           list-all-pkgs: true
           format: json
           output: trivy-vulnerabilities.json
-          version: 0.74.0
+          version: v0.74.0
           cache: false
           timeout: 20m
           exit-code: 0

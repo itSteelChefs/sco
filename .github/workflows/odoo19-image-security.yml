@@ -30,7 +30,7 @@ jobs:
             echo "Runner architecture: $(uname -m)"
             echo "Runner image platform: $(docker info --format '{{.OSType}}/{{.Architecture}}')"
             echo "Syft version: 1.55.0"
-            echo "Trivy version: 0.74.0"
+            echo "Trivy version: v0.74.0"
             echo "Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > qualification-metadata.txt
       - name: Generate SPDX SBOM from immutable image digest
